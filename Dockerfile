@@ -9,7 +9,7 @@ RUN pnpm install --frozen-lockfile
 COPY frontend/ .
 RUN pnpm build
 
-# ── Stage 2: Build backend ────────────────────────────────────────────────────
+# ── Stage 2: Build backend (with embedded UI) ─────────────────────────────────
 FROM golang:1.25-alpine AS backend-builder
 
 # CGO required for sqlite3
@@ -20,7 +20,12 @@ COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 
 COPY backend/ .
+
+# Embed the compiled frontend into the go:embed source directory
+COPY --from=frontend-builder /app/frontend/dist ./internal/static/ui
+
 RUN CGO_ENABLED=1 GOOS=linux go build \
+    -trimpath \
     -ldflags="-w -s" \
     -o wiregate \
     ./cmd/wiregate
@@ -38,23 +43,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Create wiregate user and directories
 RUN useradd -r -s /bin/false wiregate || true
-RUN mkdir -p /var/lib/wiregate /etc/wireguard
-RUN chmod 700 /etc/wireguard
+RUN mkdir -p /var/lib/wiregate /etc/wireguard && chmod 700 /etc/wireguard
 
-# Copy backend binary
+# Binary already contains the embedded UI — no separate www directory needed
 COPY --from=backend-builder /app/wiregate /usr/local/bin/wiregate
 
-# Copy frontend build output - will be served by the Go server
-COPY --from=frontend-builder /app/frontend/dist /var/lib/wiregate/www
-
-# Expose port
 EXPOSE 8080
 
 # WireGuard requires NET_ADMIN + SYS_MODULE capabilities (set via docker run)
-# Data volume for persistent config + database
 VOLUME ["/var/lib/wiregate", "/etc/wireguard"]
 
-# Default environment
+# The binary serves the embedded UI by default.
+# Set WIREGATE_SERVER_STATIC_DIR to an existing directory to override with files on disk.
 ENV WIREGATE_DATABASE_DSN=/var/lib/wiregate/wiregate.db \
     WIREGATE_SERVER_PORT=8080 \
     WIREGATE_WIREGUARD_CONFIG_DIR=/etc/wireguard

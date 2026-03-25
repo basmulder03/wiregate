@@ -5,12 +5,11 @@ import (
 
 	"github.com/basmulder03/wiregate/internal/config"
 	"github.com/basmulder03/wiregate/internal/models"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
-// Database is the interface all DB backends must implement
+// Database is the interface all DB backends must implement.
 // Currently only SQLite is implemented, but this interface allows
 // future support for PostgreSQL, MySQL, etc.
 type Database interface {
@@ -24,7 +23,7 @@ type sqliteDB struct {
 	db *gorm.DB
 }
 
-// New creates a new database connection based on configuration
+// New creates a new database connection based on configuration.
 func New(cfg *config.DatabaseConfig) (Database, error) {
 	switch cfg.Driver {
 	case "sqlite", "":
@@ -34,24 +33,19 @@ func New(cfg *config.DatabaseConfig) (Database, error) {
 	}
 }
 
-func newSQLite(dsn string) (*sqliteDB, error) {
-	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+func openGorm(dialector gorm.Dialector) (*sqliteDB, error) {
+	db, err := gorm.Open(dialector, &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to open SQLite database at %s: %w", dsn, err)
+		return nil, err
 	}
-
-	// Enable WAL mode for better concurrent read performance
 	db.Exec("PRAGMA journal_mode=WAL;")
 	db.Exec("PRAGMA foreign_keys=ON;")
-
 	return &sqliteDB{db: db}, nil
 }
 
-func (s *sqliteDB) GetDB() *gorm.DB {
-	return s.db
-}
+func (s *sqliteDB) GetDB() *gorm.DB { return s.db }
 
 func (s *sqliteDB) AutoMigrate() error {
 	return s.db.AutoMigrate(

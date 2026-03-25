@@ -9,6 +9,7 @@ import (
 	"github.com/basmulder03/wiregate/internal/auth"
 	"github.com/basmulder03/wiregate/internal/config"
 	"github.com/basmulder03/wiregate/internal/db"
+	"github.com/basmulder03/wiregate/internal/static"
 	"github.com/basmulder03/wiregate/internal/wireguard"
 )
 
@@ -18,10 +19,22 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Ensure data directory exists
-	if err := os.MkdirAll("/var/lib/wiregate", 0755); err != nil {
-		// Try local directory if /var/lib is not writable
-		cfg.Database.DSN = "./wiregate.db"
+	// Ensure data directory exists; fall back to CWD on platforms where /var/lib isn't writable.
+	dataDir := platformDataDir()
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		log.Printf("Warning: cannot create data dir %s, using current directory: %v", dataDir, err)
+		dataDir = "."
+	}
+
+	// Only override the DSN default when the user hasn't explicitly set it via env/config.
+	if cfg.Database.DSN == "/var/lib/wiregate/wiregate.db" {
+		cfg.Database.DSN = dataDir + "/wiregate.db"
+	}
+	if cfg.Server.StaticDir == "/var/lib/wiregate/www" {
+		cfg.Server.StaticDir = dataDir + "/www"
+	}
+	if cfg.WireGuard.ConfigDir == "/etc/wireguard" {
+		cfg.WireGuard.ConfigDir = platformWireGuardDir()
 	}
 
 	// Initialize database
@@ -46,14 +59,17 @@ func main() {
 	go hub.Run()
 	hub.StartConnectionPoller(gormDB, wgMgr)
 
-	// API handler + router
+	// Background expiry enforcer
 	handler := api.NewHandler(gormDB, authSvc, wgMgr, hub)
 	handler.StartExpiryEnforcer()
-	router := api.SetupRouter(handler, authSvc, cfg.Server.AllowedOrigins, cfg.Server.StaticDir)
+
+	// Frontend assets: prefer disk staticDir (set by env/config or Docker), fall back to embedded.
+	embeddedFS := static.FS()
+	router := api.SetupRouter(handler, authSvc, cfg.Server.AllowedOrigins, cfg.Server.StaticDir, embeddedFS)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 
-	log.Printf("WireGate starting on %s", addr)
+	log.Printf("WireGate starting on http://%s", addr)
 	log.Printf("Database: %s (%s)", cfg.Database.Driver, cfg.Database.DSN)
 	log.Printf("WireGuard interface: %s", cfg.WireGuard.Interface)
 

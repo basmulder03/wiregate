@@ -1,0 +1,2 @@
+This directory is populated by `make build` (frontend/dist is copied here).
+Do not add files here manually.

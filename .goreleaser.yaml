@@ -1,0 +1,112 @@
+version: 2
+
+project_name: wiregate
+
+before:
+  hooks:
+    # 1. Build the frontend
+    - sh -c "cd frontend && pnpm install --frozen-lockfile && pnpm build"
+    # 2. Copy dist into the go:embed source directory
+    - sh -c "rm -rf backend/internal/static/ui && cp -r frontend/dist backend/internal/static/ui"
+
+builds:
+  - id: wiregate
+    main: ./cmd/wiregate
+    dir: backend
+    binary: wiregate
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    # CGO cross-compilation overrides per target.
+    # Darwin builds use CGO_ENABLED=0 because osxcross is not available in CI;
+    # the resulting Darwin binaries use the pure-Go modernc SQLite driver (see db package).
+    # Linux and Windows use CGO + sqlite3 as usual.
+    overrides:
+      - goos: linux
+        goarch: amd64
+        env:
+          - CGO_ENABLED=1
+          - CC=x86_64-linux-gnu-gcc
+      - goos: linux
+        goarch: arm64
+        env:
+          - CGO_ENABLED=1
+          - CC=aarch64-linux-gnu-gcc
+      - goos: darwin
+        goarch: amd64
+        env:
+          - CGO_ENABLED=0
+      - goos: darwin
+        goarch: arm64
+        env:
+          - CGO_ENABLED=0
+      - goos: windows
+        goarch: amd64
+        env:
+          - CGO_ENABLED=1
+          - CC=x86_64-w64-mingw32-gcc
+      - goos: windows
+        goarch: arm64
+        env:
+          - CGO_ENABLED=0
+
+archives:
+  - id: default
+    name_template: "wiregate_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - install.sh
+      - install.ps1
+
+checksum:
+  name_template: "wiregate_{{ .Version }}_checksums.txt"
+  algorithm: sha256
+
+release:
+  github:
+    owner: basmulder03
+    name: wiregate
+  draft: false
+  prerelease: auto
+  name_template: "WireGate {{.Tag}}"
+  header: |
+    ## WireGate {{.Tag}}
+
+    ### Quick install
+
+    **Linux / macOS:**
+    ```sh
+    curl -fsSL https://raw.githubusercontent.com/basmulder03/wiregate/main/install.sh | bash
+    ```
+
+    **Windows (PowerShell as Administrator):**
+    ```powershell
+    irm https://raw.githubusercontent.com/basmulder03/wiregate/main/install.ps1 | iex
+    ```
+
+    Or download the binary for your platform below and run `wiregate` directly.
+    The binary is fully self-contained — no separate frontend files needed.
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch

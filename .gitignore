@@ -35,6 +35,12 @@ wiregate.yaml
 frontend/dist/
 frontend/node_modules/
 
+# Embedded UI directory (populated by `make build` / `make embed-ui`)
+# Keep the placeholder files (.gitkeep, README) but ignore everything else
+backend/internal/static/ui/*
+!backend/internal/static/ui/.gitkeep
+!backend/internal/static/ui/README
+
 # Editor / IDE
 .idea/
 .vscode/

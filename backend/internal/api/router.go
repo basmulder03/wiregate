@@ -1,6 +1,7 @@
 package api
 
 import (
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -11,8 +12,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// SetupRouter creates and configures the Gin router
-func SetupRouter(handler *Handler, authSvc *auth.Service, allowedOrigins []string, staticDir string) *gin.Engine {
+// SetupRouter creates and configures the Gin router.
+// embeddedFS is an optional fs.FS containing the compiled frontend assets.
+// When non-nil and staticDir is empty or missing on disk, the embedded FS is used.
+func SetupRouter(handler *Handler, authSvc *auth.Service, allowedOrigins []string, staticDir string, embeddedFS fs.FS) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
@@ -49,15 +52,15 @@ func SetupRouter(handler *Handler, authSvc *auth.Service, allowedOrigins []strin
 	protected.Use(middleware.AuthMiddleware(authSvc))
 	{
 		// Auth
-		auth := protected.Group("/auth")
+		authGroup := protected.Group("/auth")
 		{
-			auth.GET("/me", handler.GetCurrentUser)
-			auth.POST("/totp/setup", handler.SetupTOTP)
-			auth.POST("/totp/confirm", handler.ConfirmTOTP)
-			auth.POST("/totp/disable", handler.DisableTOTP)
-			auth.POST("/api-keys", handler.CreateAPIKey)
-			auth.GET("/api-keys", handler.ListAPIKeys)
-			auth.DELETE("/api-keys/:id", handler.DeleteAPIKey)
+			authGroup.GET("/me", handler.GetCurrentUser)
+			authGroup.POST("/totp/setup", handler.SetupTOTP)
+			authGroup.POST("/totp/confirm", handler.ConfirmTOTP)
+			authGroup.POST("/totp/disable", handler.DisableTOTP)
+			authGroup.POST("/api-keys", handler.CreateAPIKey)
+			authGroup.GET("/api-keys", handler.ListAPIKeys)
+			authGroup.DELETE("/api-keys/:id", handler.DeleteAPIKey)
 		}
 
 		// Server management (admin only)
@@ -105,41 +108,86 @@ func SetupRouter(handler *Handler, authSvc *auth.Service, allowedOrigins []strin
 		}
 	}
 
-	// Serve frontend SPA from staticDir (if it exists)
-	if staticDir != "" {
-		if _, err := os.Stat(staticDir); err == nil {
-			// Serve /assets/** (hashed JS/CSS bundles)
-			router.Static("/assets", filepath.Join(staticDir, "assets"))
+	// --- Static / SPA serving ---
+	// Priority: disk staticDir (dev / Docker) > embeddedFS (release binary)
 
-			// Serve root-level static files (favicon, icons, manifest, etc.)
-			// Only serves if the file actually exists on disk; otherwise falls through to NoRoute.
-			router.GET("/:file", func(c *gin.Context) {
-				file := c.Param("file")
-				fullPath := filepath.Join(staticDir, filepath.Base(file))
-				if info, err := os.Stat(fullPath); err == nil && !info.IsDir() {
-					c.File(fullPath)
-					return
-				}
-				// Fall through to SPA index for client-side routes (e.g. /setup, /clients)
-				indexPath := filepath.Join(staticDir, "index.html")
-				if _, err := os.Stat(indexPath); err == nil {
-					c.File(indexPath)
-				} else {
-					c.Status(http.StatusNotFound)
-				}
-			})
+	diskOK := staticDir != "" && func() bool {
+		_, err := os.Stat(staticDir)
+		return err == nil
+	}()
 
-			// SPA fallback: multi-segment paths that don't match files → index.html
-			router.NoRoute(func(c *gin.Context) {
-				indexPath := filepath.Join(staticDir, "index.html")
-				if _, err := os.Stat(indexPath); err == nil {
-					c.File(indexPath)
-				} else {
-					c.Status(http.StatusNotFound)
-				}
-			})
-		}
+	if diskOK {
+		serveSPAFromDisk(router, staticDir)
+	} else if embeddedFS != nil {
+		serveSPAFromFS(router, embeddedFS)
 	}
 
 	return router
+}
+
+// serveSPAFromDisk mounts the SPA from a directory on disk.
+func serveSPAFromDisk(router *gin.Engine, staticDir string) {
+	router.Static("/assets", filepath.Join(staticDir, "assets"))
+
+	router.GET("/:file", func(c *gin.Context) {
+		file := c.Param("file")
+		fullPath := filepath.Join(staticDir, filepath.Base(file))
+		if info, err := os.Stat(fullPath); err == nil && !info.IsDir() {
+			c.File(fullPath)
+			return
+		}
+		indexPath := filepath.Join(staticDir, "index.html")
+		if _, err := os.Stat(indexPath); err == nil {
+			c.File(indexPath)
+		} else {
+			c.Status(http.StatusNotFound)
+		}
+	})
+
+	router.NoRoute(func(c *gin.Context) {
+		indexPath := filepath.Join(staticDir, "index.html")
+		if _, err := os.Stat(indexPath); err == nil {
+			c.File(indexPath)
+		} else {
+			c.Status(http.StatusNotFound)
+		}
+	})
+}
+
+// serveSPAFromFS mounts the SPA from an embedded fs.FS.
+func serveSPAFromFS(router *gin.Engine, fsys fs.FS) {
+	httpFS := http.FS(fsys)
+	fileServer := http.FileServer(httpFS)
+
+	// /assets/** served from the embedded FS
+	router.GET("/assets/*filepath", func(c *gin.Context) {
+		c.Request.URL.Path = "/assets" + c.Param("filepath")
+		fileServer.ServeHTTP(c.Writer, c.Request)
+	})
+
+	// Root-level files (favicon, icons, manifest…)
+	router.GET("/:file", func(c *gin.Context) {
+		file := c.Param("file")
+		if f, err := fsys.Open(file[1:]); err == nil {
+			f.Close()
+			c.Request.URL.Path = file
+			fileServer.ServeHTTP(c.Writer, c.Request)
+			return
+		}
+		// SPA fallback
+		serveIndexFromFS(c, fsys)
+	})
+
+	router.NoRoute(func(c *gin.Context) {
+		serveIndexFromFS(c, fsys)
+	})
+}
+
+func serveIndexFromFS(c *gin.Context, fsys fs.FS) {
+	data, err := fs.ReadFile(fsys, "index.html")
+	if err != nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	c.Data(http.StatusOK, "text/html; charset=utf-8", data)
 }

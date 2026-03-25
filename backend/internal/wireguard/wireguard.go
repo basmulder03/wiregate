@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -90,66 +89,6 @@ func NewManager(configDir, iface string) *Manager {
 		configDir: configDir,
 		iface:     iface,
 	}
-}
-
-// IsInstalled checks if WireGuard tools are available on the system
-func IsInstalled() bool {
-	_, errWg := exec.LookPath("wg")
-	_, errWgQuick := exec.LookPath("wg-quick")
-	return errWg == nil && errWgQuick == nil
-}
-
-// IsRunning checks if the WireGuard interface is up
-func (m *Manager) IsRunning() bool {
-	cmd := exec.Command("wg", "show", m.iface)
-	return cmd.Run() == nil
-}
-
-// Start brings up the WireGuard interface
-func (m *Manager) Start() error {
-	confPath := filepath.Join(m.configDir, m.iface+".conf")
-	if _, err := os.Stat(confPath); os.IsNotExist(err) {
-		return fmt.Errorf("config file not found: %s", confPath)
-	}
-	out, err := exec.Command("wg-quick", "up", m.iface).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to start WireGuard: %s: %w", string(out), err)
-	}
-	return nil
-}
-
-// Stop brings down the WireGuard interface
-func (m *Manager) Stop() error {
-	out, err := exec.Command("wg-quick", "down", m.iface).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to stop WireGuard: %s: %w", string(out), err)
-	}
-	return nil
-}
-
-// Restart restarts the WireGuard interface
-func (m *Manager) Restart() error {
-	if m.IsRunning() {
-		if err := m.Stop(); err != nil {
-			return err
-		}
-	}
-	return m.Start()
-}
-
-// Reload applies config changes without dropping connections (wg syncconf)
-func (m *Manager) Reload(conf *ServerConf) error {
-	stripped, err := generateStrippedConf(conf)
-	if err != nil {
-		return err
-	}
-	cmd := exec.Command("wg", "syncconf", m.iface, "/dev/stdin")
-	cmd.Stdin = strings.NewReader(stripped)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("wg syncconf failed: %s: %w", string(out), err)
-	}
-	return nil
 }
 
 // WriteConfig writes the WireGuard server config file
@@ -261,60 +200,6 @@ type ConnectedPeer struct {
 	LatestHandshake string
 	TransferRx      int64
 	TransferTx      int64
-}
-
-// GetConnectedPeers parses `wg show` output for live connection data
-func (m *Manager) GetConnectedPeers() ([]ConnectedPeer, error) {
-	out, err := exec.Command("wg", "show", m.iface, "dump").CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("wg show dump failed: %s: %w", string(out), err)
-	}
-	return parseDump(string(out))
-}
-
-// DisconnectPeer removes a peer from the live WireGuard interface
-func (m *Manager) DisconnectPeer(publicKey string) error {
-	out, err := exec.Command("wg", "set", m.iface, "peer", publicKey, "remove").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to remove peer: %s: %w", string(out), err)
-	}
-	return nil
-}
-
-// GetStatus returns the WireGuard interface status string
-func (m *Manager) GetStatus() (string, error) {
-	out, err := exec.Command("wg", "show", m.iface).CombinedOutput()
-	if err != nil {
-		return "", nil // Not running
-	}
-	return string(out), nil
-}
-
-// GetSystemdStatus returns systemd service status
-func (m *Manager) GetSystemdStatus() (string, error) {
-	out, err := exec.Command("systemctl", "is-active", fmt.Sprintf("wg-quick@%s", m.iface)).CombinedOutput()
-	if err != nil {
-		return strings.TrimSpace(string(out)), nil
-	}
-	return strings.TrimSpace(string(out)), nil
-}
-
-// EnableSystemd enables the WireGuard service to start on boot
-func (m *Manager) EnableSystemd() error {
-	out, err := exec.Command("systemctl", "enable", fmt.Sprintf("wg-quick@%s", m.iface)).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("systemctl enable failed: %s: %w", string(out), err)
-	}
-	return nil
-}
-
-// DisableSystemd disables WireGuard from starting on boot
-func (m *Manager) DisableSystemd() error {
-	out, err := exec.Command("systemctl", "disable", fmt.Sprintf("wg-quick@%s", m.iface)).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("systemctl disable failed: %s: %w", string(out), err)
-	}
-	return nil
 }
 
 func generateStrippedConf(conf *ServerConf) (string, error) {
