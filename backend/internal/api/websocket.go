@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -195,6 +196,9 @@ func (h *Hub) StartUpdateChecker(db *gorm.DB, currentVersion string, method upda
 func (h *Hub) checkAndMaybeUpdate(db *gorm.DB, currentVersion string, method update.InstallMethod) {
 	release, err := update.FetchLatestRelease()
 	if err != nil {
+		if errors.Is(err, update.ErrNoPublishedRelease) {
+			return
+		}
 		log.Printf("update checker: %v", err)
 		return
 	}

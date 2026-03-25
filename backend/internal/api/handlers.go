@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -1222,7 +1223,10 @@ func (h *Handler) StartExpiryEnforcer() {
 
 func (h *Handler) enforceExpiry() {
 	var server models.WireGuardServer
-	if err := h.db.First(&server).Error; err != nil {
+	if err := h.db.Limit(1).Find(&server).Error; err != nil {
+		return // db error
+	}
+	if server.ID == 0 {
 		return // no server configured yet
 	}
 
@@ -1269,6 +1273,8 @@ func (h *Handler) GetVersion(c *gin.Context) {
 		info["latest_tag"] = release.TagName
 		info["latest_url"] = release.HTMLURL
 		info["update_available"] = update.IsNewer(h.version, release.TagName)
+	} else if !errors.Is(err, update.ErrNoPublishedRelease) {
+		log.Printf("version check: %v", err)
 	}
 
 	c.JSON(http.StatusOK, info)
@@ -1320,6 +1326,10 @@ func (h *Handler) SetUpdateSettings(c *gin.Context) {
 func (h *Handler) TriggerUpdate(c *gin.Context) {
 	release, err := update.FetchLatestRelease()
 	if err != nil {
+		if errors.Is(err, update.ErrNoPublishedRelease) {
+			c.JSON(http.StatusOK, gin.H{"message": "no published release available yet"})
+			return
+		}
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "could not fetch release info: " + err.Error()})
 		return
 	}

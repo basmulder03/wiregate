@@ -6,6 +6,7 @@ import (
 	"archive/zip"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -23,6 +24,8 @@ const (
 	repoName  = "wiregate"
 	apiURL    = "https://api.github.com/repos/" + repoOwner + "/" + repoName + "/releases/latest"
 )
+
+var ErrNoPublishedRelease = errors.New("github release not found")
 
 // InstallMethod describes how WireGate was installed / is managed.
 type InstallMethod string
@@ -87,6 +90,9 @@ func FetchLatestRelease() (*ReleaseInfo, error) {
 
 	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
 		return nil, fmt.Errorf("github api rate limit exceeded")
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, ErrNoPublishedRelease
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("github api returned %d", resp.StatusCode)
