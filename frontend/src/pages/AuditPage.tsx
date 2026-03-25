@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { auditApi } from '@/api'
 import { Badge } from '@/lib/utils'
@@ -6,17 +6,17 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  CheckCircle2,
   ClipboardList,
-  Filter,
   Loader2,
   Search,
+  ShieldAlert,
   User,
   X,
 } from 'lucide-react'
 
 type SortField = 'created_at' | 'username' | 'action' | 'resource' | 'ip_address' | 'success'
 type SortDirection = 'asc' | 'desc'
-type StatusFilter = 'all' | 'success' | 'failed'
 
 const PAGE_SIZES = [10, 25, 50, 100]
 
@@ -24,27 +24,60 @@ function formatTimestamp(value: string) {
   return new Date(value).toLocaleString()
 }
 
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  tone,
+}: {
+  label: string
+  value: number
+  icon: typeof CheckCircle2
+  tone: 'neutral' | 'success' | 'danger'
+}) {
+  const tones = {
+    neutral: 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300',
+    success: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300',
+    danger: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300',
+  }
+
+  return (
+    <div className={`rounded-xl border p-4 ${tones[tone]}`}>
+      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide opacity-80">
+        <Icon className="w-4 h-4" />
+        {label}
+      </div>
+      <div className="mt-2 text-2xl font-semibold">{value}</div>
+    </div>
+  )
+}
+
 export function AuditPage() {
   const [searchInput, setSearchInput] = useState('')
-  const [query, setQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
-  const [actionFilter, setActionFilter] = useState('')
-  const [userFilter, setUserFilter] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(searchInput.trim())
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [searchInput])
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch])
+
   const params = useMemo(() => ({
-    q: query || undefined,
-    status: statusFilter === 'all' ? undefined : statusFilter,
-    action: actionFilter.trim() || undefined,
-    username: userFilter.trim() || undefined,
+    query: debouncedSearch || undefined,
     sort: sortField,
     order: sortDirection,
     page,
     page_size: pageSize,
-  }), [actionFilter, page, pageSize, query, sortDirection, sortField, statusFilter, userFilter])
+  }), [debouncedSearch, page, pageSize, sortDirection, sortField])
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['audit', params],
@@ -53,8 +86,14 @@ export function AuditPage() {
   })
 
   const logs = data?.items ?? []
-  const total = data?.total ?? 0
+  const total = typeof data?.total === 'number' ? data.total : logs.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const successCount = typeof data?.success_total === 'number'
+    ? data.success_total
+    : logs.filter((log) => log.success).length
+  const failedCount = typeof data?.failed_total === 'number'
+    ? data.failed_total
+    : logs.filter((log) => !log.success).length
 
   const updateSort = (field: SortField) => {
     setPage(1)
@@ -68,10 +107,7 @@ export function AuditPage() {
 
   const resetFilters = () => {
     setSearchInput('')
-    setQuery('')
-    setStatusFilter('all')
-    setActionFilter('')
-    setUserFilter('')
+    setDebouncedSearch('')
     setSortField('created_at')
     setSortDirection('desc')
     setPage(1)
@@ -85,13 +121,19 @@ export function AuditPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="h-[calc(100vh-6rem)] min-h-0 flex flex-col gap-6 overflow-hidden">
       <div>
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Audit Log</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Search and review system activity without leaving the latest events view.</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Use one search bar with tokens like <code>status:failed</code>, <code>user:bas</code>, <code>time:{'>='}2026-03-25</code>, <code>ip:10.0.0.0/24</code>, or <code>action:login AND NOT resource:oidc</code>.</p>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatCard label="Matching Events" value={total} icon={ClipboardList} tone="neutral" />
+        <StatCard label="Successful" value={successCount} icon={CheckCircle2} tone="success" />
+        <StatCard label="Failed" value={failedCount} icon={ShieldAlert} tone="danger" />
+      </div>
+
+      <div className="flex-1 min-h-0 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden flex flex-col">
         <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
           <ClipboardList className="w-4 h-4 text-gray-500 dark:text-gray-400" />
           <span className="font-medium text-gray-900 dark:text-gray-100">Events</span>
@@ -102,51 +144,29 @@ export function AuditPage() {
         </div>
 
         <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/40 dark:bg-gray-950/20 space-y-3">
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.6fr),160px,180px,180px,auto] gap-3">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault()
-                setPage(1)
-                setQuery(searchInput.trim())
-              }}
-              className="relative"
-            >
+          <div className="flex flex-col lg:flex-row gap-3">
+            <div className="relative flex-1">
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search events"
-                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Search events, or use user: action: resource: ip: status:failed"
+                className="w-full pl-9 pr-10 py-2.5 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-            </form>
-
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); setPage(1) }}
-              className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All statuses</option>
-              <option value="success">Success</option>
-              <option value="failed">Failed</option>
-            </select>
-
-            <input
-              value={actionFilter}
-              onChange={(e) => { setActionFilter(e.target.value); setPage(1) }}
-              placeholder="Action contains..."
-              className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-
-            <input
-              value={userFilter}
-              onChange={(e) => { setUserFilter(e.target.value); setPage(1) }}
-              placeholder="User contains..."
-              className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+              {searchInput && (
+                <button
+                  onClick={resetFilters}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                  title="Clear query"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
 
             <button
               onClick={resetFilters}
-              className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              className="inline-flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
               <X className="w-4 h-4" />
               Reset
@@ -154,12 +174,12 @@ export function AuditPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-            <Filter className="w-3.5 h-3.5" />
+            <Search className="w-3.5 h-3.5" />
+            <span>Supports `AND`, `OR`, `NOT`, parentheses, time comparisons, and CIDR filters like `ip:10.0.0.0/24`</span>
+            <span className="text-gray-300 dark:text-gray-600">•</span>
             <span>{logs.length} visible on this page</span>
             <span className="text-gray-300 dark:text-gray-600">•</span>
             <span>Sorted by {sortField.replace('_', ' ')} ({sortDirection})</span>
-            <span className="text-gray-300 dark:text-gray-600">•</span>
-            <span>Page {page} of {totalPages}</span>
           </div>
         </div>
 
@@ -171,14 +191,14 @@ export function AuditPage() {
           <div className="text-center py-16">
             <ClipboardList className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
             <p className="text-gray-500 dark:text-gray-400 font-medium">No matching audit events</p>
-            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Try broadening the search or clearing some filters.</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Try broadening the search or clearing some tokens.</p>
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="flex-1 min-h-0 overflow-auto audit-scrollbar">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100 dark:border-gray-800">
+                  <tr className="border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 sticky top-0 z-10">
                     {[
                       ['created_at', 'Time'],
                       ['username', 'User'],

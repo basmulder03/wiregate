@@ -738,6 +738,7 @@ func (h *Handler) GetAuditLogs(c *gin.Context) {
 		pageSize = 500
 	}
 
+	rawQuery := strings.TrimSpace(c.Query("query"))
 	if q := strings.TrimSpace(c.Query("q")); q != "" {
 		like := "%" + q + "%"
 		query = query.Where(
@@ -752,6 +753,14 @@ func (h *Handler) GetAuditLogs(c *gin.Context) {
 
 	if username := strings.TrimSpace(c.Query("username")); username != "" {
 		query = query.Where("username LIKE ?", "%"+username+"%")
+	}
+
+	if resource := strings.TrimSpace(c.Query("resource")); resource != "" {
+		query = query.Where("resource LIKE ?", "%"+resource+"%")
+	}
+
+	if ipAddress := strings.TrimSpace(c.Query("ip")); ipAddress != "" {
+		query = query.Where("ip_address LIKE ?", "%"+ipAddress+"%")
 	}
 
 	if status := strings.TrimSpace(c.Query("status")); status != "" {
@@ -783,19 +792,71 @@ func (h *Handler) GetAuditLogs(c *gin.Context) {
 		sortOrder = "desc"
 	}
 
+	if rawQuery != "" {
+		expr, err := parseAuditExpr(rawQuery)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid audit query: " + err.Error()})
+			return
+		}
+
+		var allLogs []models.AuditLog
+		query.Order("created_at desc").Find(&allLogs)
+		filtered := filterAuditLogs(allLogs, expr)
+		successTotal := 0
+		for _, log := range filtered {
+			if log.Success {
+				successTotal++
+			}
+		}
+		failedTotal := len(filtered) - successTotal
+
+		sortAuditLogs(filtered, sortField, sortOrder)
+		total := len(filtered)
+		start := (page - 1) * pageSize
+		if start > total {
+			start = total
+		}
+		end := start + pageSize
+		if end > total {
+			end = total
+		}
+		logs = filtered[start:end]
+
+		c.JSON(http.StatusOK, gin.H{
+			"items":         logs,
+			"total":         total,
+			"page":          page,
+			"page_size":     pageSize,
+			"sort":          sortField,
+			"order":         sortOrder,
+			"success_total": successTotal,
+			"failed_total":  failedTotal,
+		})
+		return
+	}
+
+	countQuery := query.Session(&gorm.Session{})
+	successQuery := query.Session(&gorm.Session{})
+
 	var total int64
-	query.Count(&total)
+	countQuery.Count(&total)
+
+	var successTotal int64
+	successQuery.Where("success = ?", true).Count(&successTotal)
+	failedTotal := total - successTotal
 
 	query = query.Order(column + " " + sortOrder).Offset((page - 1) * pageSize).Limit(pageSize)
 	query.Find(&logs)
 
 	c.JSON(http.StatusOK, gin.H{
-		"items":     logs,
-		"total":     total,
-		"page":      page,
-		"page_size": pageSize,
-		"sort":      sortField,
-		"order":     sortOrder,
+		"items":         logs,
+		"total":         total,
+		"page":          page,
+		"page_size":     pageSize,
+		"sort":          sortField,
+		"order":         sortOrder,
+		"success_total": successTotal,
+		"failed_total":  failedTotal,
 	})
 }
 

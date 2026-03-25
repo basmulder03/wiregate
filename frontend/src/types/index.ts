@@ -73,6 +73,8 @@ export interface AuditLog {
 export interface AuditLogListResponse {
   items: AuditLog[]
   total: number
+  success_total: number
+  failed_total: number
   page: number
   page_size: number
   sort: string

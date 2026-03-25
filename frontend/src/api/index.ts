@@ -124,10 +124,13 @@ export const connectionsApi = {
 // Audit
 export const auditApi = {
   list: (params?: {
+    query?: string
     q?: string
     status?: 'success' | 'failed'
     action?: string
     username?: string
+    resource?: string
+    ip?: string
     sort?: 'created_at' | 'username' | 'action' | 'resource' | 'ip_address' | 'success'
     order?: 'asc' | 'desc'
     page?: number
