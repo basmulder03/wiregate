@@ -73,6 +73,26 @@ The interactive installer will:
 2. Optionally install WireGuard tools (via your package manager or Homebrew)
 3. Optionally register a systemd service (Linux root) or launchd agent (macOS)
 
+### Proxmox LXC
+
+Run on the Proxmox host as `root` to create a fresh Debian 12 LXC, enable the required `/dev/net/tun` access, prepare WireGuard on the Proxmox host and inside the container, install the latest WireGate release, and register a systemd service inside the container:
+
+```sh
+git clone https://github.com/basmulder03/wiregate.git
+cd wiregate
+sudo bash scripts/proxmox-create-lxc.sh --ctid 120 --hostname wiregate
+```
+
+Useful options:
+
+- `--ip-config dhcp` or `--ip-config 10.0.10.50/24,gw=10.0.10.1`
+- `--storage local-lvm`
+- `--template-storage local`
+- `--web-port 8080`
+- `--wg-interface wg0`
+
+After the script finishes, open the reported web UI URL and complete the first-run setup.
+
 ### Bare-metal — Windows
 
 Run in PowerShell **as Administrator**:
