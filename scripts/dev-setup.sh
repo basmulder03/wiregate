@@ -17,7 +17,7 @@ IFACE="wgdev0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-RUNTIME_BASE="${XDG_RUNTIME_DIR:-/tmp/wiregate-${USER:-dev}}"
+RUNTIME_BASE="${XDG_RUNTIME_DIR:-/tmp}/wiregate-${USER:-dev}"
 WG_DIR="${RUNTIME_BASE}/wireguard"
 DATA_DIR="${ROOT_DIR}/.dev-data"
 CONF_FILE="${WG_DIR}/${IFACE}.conf"

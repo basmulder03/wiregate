@@ -10,7 +10,7 @@ IFACE="wgdev0"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-RUNTIME_BASE="${XDG_RUNTIME_DIR:-/tmp/wiregate-${USER:-dev}}"
+RUNTIME_BASE="${XDG_RUNTIME_DIR:-/tmp}/wiregate-${USER:-dev}"
 CONF_FILE="${RUNTIME_BASE}/wireguard/${IFACE}.conf"
 
 ok() { printf '  \033[32m[dev-teardown]\033[0m ✓ %s\n' "$*"; }

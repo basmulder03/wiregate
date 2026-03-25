@@ -1,5 +1,5 @@
 # WireGate Makefile
-.PHONY: all build backend frontend clean dev dev-backend dev-frontend dev-setup dev-teardown \
+.PHONY: all build backend frontend clean dev dev-backend dev-frontend dev-setup dev-teardown dev-destroy \
         release release-linux-amd64 release-linux-arm64 \
         release-darwin-amd64 release-darwin-arm64 \
         release-windows-amd64 \
@@ -90,7 +90,7 @@ dev:
 	  trap 'kill 0; bash scripts/dev-teardown.sh' INT TERM EXIT; \
 	  ( export WIREGATE_DEV_MODE=1; \
 	    export WIREGATE_WIREGUARD_INTERFACE=wgdev0; \
-	    export WIREGATE_WIREGUARD_CONFIG_DIR="$${XDG_RUNTIME_DIR:-/tmp/wiregate-$${USER:-dev}}/wireguard"; \
+	    export WIREGATE_WIREGUARD_CONFIG_DIR="$${XDG_RUNTIME_DIR:-/tmp}/wiregate-$${USER:-dev}/wireguard"; \
 	    cd backend && "$$AIR_BIN" ) & \
 	  ( cd frontend && pnpm dev ) & \
 	  wait
@@ -109,7 +109,7 @@ dev-backend:
 	fi; \
 	export WIREGATE_DEV_MODE=1; \
 	export WIREGATE_WIREGUARD_INTERFACE=wgdev0; \
-	export WIREGATE_WIREGUARD_CONFIG_DIR="$${XDG_RUNTIME_DIR:-/tmp/wiregate-$${USER:-dev}}/wireguard"; \
+	export WIREGATE_WIREGUARD_CONFIG_DIR="$${XDG_RUNTIME_DIR:-/tmp}/wiregate-$${USER:-dev}/wireguard"; \
 	cd backend && "$$AIR_BIN"
 
 ## Run only the Vite frontend dev server (proxies /api → :8080).
@@ -127,6 +127,10 @@ dev-setup:
 ## Tear down the wgdev0 interface created by dev-setup.
 dev-teardown:
 	@bash scripts/dev-teardown.sh
+
+## Destroy all local dev data (DB + WireGuard dev state).
+dev-destroy:
+	@bash scripts/dev-destroy.sh
 
 ## Install Go dev tools (air for hot-reload).
 tools:
@@ -186,6 +190,7 @@ help:
 	@echo "  dev-frontend           Frontend Vite dev server only"
 	@echo "  dev-setup              Create wgdev0 WireGuard interface for local dev"
 	@echo "  dev-teardown           Remove wgdev0 interface"
+	@echo "  dev-destroy            Remove all local dev data (fresh start)"
 	@echo "  test                   Run backend tests"
 	@echo "  docker                 Build Docker image"
 	@echo "  up / down              Start/stop Docker Compose"
