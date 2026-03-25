@@ -9,6 +9,7 @@ export function LogsPage() {
   const [lines, setLines] = useState(200)
   const [includeWireGate, setIncludeWireGate] = useState(true)
   const [includeWireGuard, setIncludeWireGuard] = useState(true)
+  const [includeTraffic, setIncludeTraffic] = useState(true)
   const [live, setLive] = useState(true)
   const [search, setSearch] = useState('')
 
@@ -16,8 +17,9 @@ export function LogsPage() {
     const next: string[] = []
     if (includeWireGate) next.push('wiregate')
     if (includeWireGuard) next.push('wireguard')
+    if (includeTraffic) next.push('traffic')
     return next
-  }, [includeWireGate, includeWireGuard])
+  }, [includeTraffic, includeWireGate, includeWireGuard])
 
   const servicesQuery = services.join(',')
 
@@ -110,6 +112,16 @@ export function LogsPage() {
             }`}
           >
             wireguard
+          </button>
+          <button
+            onClick={() => setIncludeTraffic((current) => !current)}
+            className={`px-2.5 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+              includeTraffic
+                ? 'border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
+                : 'border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400'
+            }`}
+          >
+            traffic
           </button>
 
           <select
@@ -216,7 +228,9 @@ export function LogsPage() {
                   <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide w-fit ${
                     entry.service === 'wireguard'
                       ? 'bg-indigo-500/20 text-indigo-200'
-                      : 'bg-blue-500/20 text-blue-200'
+                      : entry.service === 'traffic'
+                        ? 'bg-emerald-500/20 text-emerald-200'
+                        : 'bg-blue-500/20 text-blue-200'
                   }`}>
                     <Activity className="w-3 h-3" />
                     {entry.service}

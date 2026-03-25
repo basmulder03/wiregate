@@ -173,9 +173,9 @@ export interface UpdateSettings {
 
 export interface SystemLogEntry {
   timestamp: string
-  service: 'wiregate' | 'wireguard'
+  service: 'wiregate' | 'wireguard' | 'traffic'
   unit: string
-  source?: 'journal' | 'process'
+  source?: 'journal' | 'process' | 'runtime'
   message: string
 }
 

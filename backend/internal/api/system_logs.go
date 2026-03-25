@@ -45,9 +45,10 @@ func (h *Handler) GetSystemLogs(c *gin.Context) {
 	availableUnits := map[string]string{
 		"wiregate":  "wiregate",
 		"wireguard": "wg-quick@" + iface,
+		"traffic":   "",
 	}
 
-	selectedServices := []string{"wiregate", "wireguard"}
+	selectedServices := []string{"wiregate", "wireguard", "traffic"}
 	if raw := strings.TrimSpace(c.Query("services")); raw != "" {
 		selectedServices = selectedServices[:0]
 		seen := map[string]struct{}{}
@@ -66,14 +67,16 @@ func (h *Handler) GetSystemLogs(c *gin.Context) {
 			selectedServices = append(selectedServices, service)
 		}
 		if len(selectedServices) == 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "services must include wiregate and/or wireguard"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "services must include wiregate, wireguard, and/or traffic"})
 			return
 		}
 	}
 
 	units := make([]string, 0, len(selectedServices))
 	for _, service := range selectedServices {
-		units = append(units, availableUnits[service])
+		if unit := availableUnits[service]; unit != "" {
+			units = append(units, unit)
+		}
 	}
 	entries := make([]systemLogEntry, 0)
 	warnings := make([]string, 0)
@@ -89,6 +92,11 @@ func (h *Handler) GetSystemLogs(c *gin.Context) {
 	}
 
 	for _, service := range selectedServices {
+		if service == "traffic" {
+			entries = append(entries, snapshotTrafficLogs(lines)...)
+			continue
+		}
+
 		unit := availableUnits[service]
 
 		if journalAvailable {

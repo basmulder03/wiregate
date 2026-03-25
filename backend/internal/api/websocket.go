@@ -122,6 +122,8 @@ func (h *Hub) StartConnectionPoller(db *gorm.DB, wgMgr *wireguard.Manager) {
 		// Track previously seen peer set to detect connect/disconnect events
 		type peerKey = string
 		prevPeers := map[peerKey]bool{}
+		type transfer struct{ rx, tx int64 }
+		prevTransfer := map[peerKey]transfer{}
 
 		for range ticker.C {
 			if len(h.clients) == 0 {
@@ -133,12 +135,37 @@ func (h *Hub) StartConnectionPoller(db *gorm.DB, wgMgr *wireguard.Manager) {
 			}
 
 			currentPeers := map[peerKey]bool{}
+			currentTransfer := map[peerKey]transfer{}
 			for _, p := range peers {
 				currentPeers[p.PublicKey] = true
+				currentTransfer[p.PublicKey] = transfer{rx: p.TransferRx, tx: p.TransferTx}
 			}
 
 			// Detect newly connected peers
 			for _, p := range peers {
+				if prev, ok := prevTransfer[p.PublicKey]; ok {
+					deltaRx := p.TransferRx - prev.rx
+					deltaTx := p.TransferTx - prev.tx
+					if deltaRx > 0 || deltaTx > 0 {
+						clientName := p.PublicKey[:8] + "…"
+						var r struct{ Name string }
+						if db.Raw("SELECT name FROM clients WHERE public_key = ? LIMIT 1", p.PublicKey).Scan(&r).Error == nil && r.Name != "" {
+							clientName = r.Name
+						}
+						message := clientName + " transferred"
+						if deltaRx > 0 {
+							message += " rx=" + humanBytes(deltaRx)
+						}
+						if deltaTx > 0 {
+							message += " tx=" + humanBytes(deltaTx)
+						}
+						if p.Endpoint != "" {
+							message += " endpoint=" + p.Endpoint
+						}
+						appendTrafficLog(message)
+					}
+				}
+
 				if !prevPeers[p.PublicKey] {
 					clientName := p.PublicKey[:8] + "…"
 					// Try to resolve the client name from DB
@@ -166,6 +193,7 @@ func (h *Hub) StartConnectionPoller(db *gorm.DB, wgMgr *wireguard.Manager) {
 			}
 
 			prevPeers = currentPeers
+			prevTransfer = currentTransfer
 
 			h.Broadcast(gin.H{
 				"type":      "connections",
@@ -174,6 +202,23 @@ func (h *Hub) StartConnectionPoller(db *gorm.DB, wgMgr *wireguard.Manager) {
 			})
 		}
 	}()
+}
+
+func humanBytes(value int64) string {
+	if value <= 0 {
+		return "0B"
+	}
+	units := []string{"B", "KB", "MB", "GB", "TB"}
+	idx := 0
+	size := float64(value)
+	for size >= 1024 && idx < len(units)-1 {
+		size /= 1024
+		idx++
+	}
+	if size >= 10 || idx == 0 {
+		return fmt.Sprintf("%.0f%s", size, units[idx])
+	}
+	return fmt.Sprintf("%.1f%s", size, units[idx])
 }
 
 // StartUpdateChecker polls GitHub for new releases every 6 hours and
