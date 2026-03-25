@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authApi, serverApi, settingsApi } from '@/api'
+import { CIDRBuilderModal } from '@/components/network/CIDRBuilderModal'
 import { useAuth } from '@/context/AuthContext'
 import { Network, Loader2, Check, ChevronRight, Server, User } from 'lucide-react'
 
@@ -167,6 +168,7 @@ function StepServerConfig({ onDone }: { onDone: () => void }) {
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [isCIDRBuilderOpen, setIsCIDRBuilderOpen] = useState(false)
 
   const set = (field: keyof ServerForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [field]: e.target.value }))
@@ -242,14 +244,23 @@ function StepServerConfig({ onDone }: { onDone: () => void }) {
         <label className={labelCls}>
           Server Address <span className="text-gray-400 font-normal">(CIDR)</span>
         </label>
-        <input
-          type="text"
-          value={form.address}
-          onChange={set('address')}
-          className={inputCls}
-          placeholder="10.8.0.1/24"
-          required
-        />
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={form.address}
+            onChange={set('address')}
+            className={inputCls}
+            placeholder="10.8.0.1/24"
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setIsCIDRBuilderOpen(true)}
+            className="shrink-0 px-3 py-2 text-xs font-medium text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+          >
+            CIDR Builder
+          </button>
+        </div>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">The VPN subnet — clients will get IPs from this range.</p>
       </div>
 
@@ -333,6 +344,18 @@ function StepServerConfig({ onDone }: { onDone: () => void }) {
         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
         Save & finish
       </button>
+
+      <CIDRBuilderModal
+        isOpen={isCIDRBuilderOpen}
+        onClose={() => setIsCIDRBuilderOpen(false)}
+        value={form.address}
+        title="Server CIDR Builder"
+        description="Build and validate the subnet used for client IP allocation."
+        onApply={(value) => {
+          setForm((current) => ({ ...current, address: value }))
+          setIsCIDRBuilderOpen(false)
+        }}
+      />
     </form>
   )
 }

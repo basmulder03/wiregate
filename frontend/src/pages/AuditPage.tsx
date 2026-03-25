@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { auditApi } from '@/api'
+import { CIDRBuilderModal } from '@/components/network/CIDRBuilderModal'
 import { Badge } from '@/lib/utils'
 import {
   ArrowDown,
@@ -8,6 +9,7 @@ import {
   ArrowUpDown,
   CheckCircle2,
   ClipboardList,
+  Filter,
   Loader2,
   Search,
   ShieldAlert,
@@ -17,11 +19,58 @@ import {
 
 type SortField = 'created_at' | 'username' | 'action' | 'resource' | 'ip_address' | 'success'
 type SortDirection = 'asc' | 'desc'
+type QueryStatus = 'any' | 'success' | 'failed'
+
+type QueryBuilderDraft = {
+  text: string
+  user: string
+  action: string
+  resource: string
+  ip: string
+  status: QueryStatus
+  fromDateTime: string
+  toDateTime: string
+}
 
 const PAGE_SIZES = [10, 25, 50, 100]
 
+const defaultQueryBuilderDraft: QueryBuilderDraft = {
+  text: '',
+  user: '',
+  action: '',
+  resource: '',
+  ip: '',
+  status: 'any',
+  fromDateTime: '',
+  toDateTime: '',
+}
+
 function formatTimestamp(value: string) {
   return new Date(value).toLocaleString()
+}
+
+function quoteTokenValue(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (/\s/.test(trimmed)) {
+    return `"${trimmed.replace(/"/g, '\\"')}"`
+  }
+  return trimmed
+}
+
+function buildQueryFromDraft(draft: QueryBuilderDraft) {
+  const tokens: string[] = []
+
+  if (draft.text.trim()) tokens.push(draft.text.trim())
+  if (draft.user.trim()) tokens.push(`user:${quoteTokenValue(draft.user)}`)
+  if (draft.action.trim()) tokens.push(`action:${quoteTokenValue(draft.action)}`)
+  if (draft.resource.trim()) tokens.push(`resource:${quoteTokenValue(draft.resource)}`)
+  if (draft.ip.trim()) tokens.push(`ip:${quoteTokenValue(draft.ip)}`)
+  if (draft.status !== 'any') tokens.push(`status:${draft.status}`)
+  if (draft.fromDateTime) tokens.push(`time:>=${draft.fromDateTime}`)
+  if (draft.toDateTime) tokens.push(`time:<=${draft.toDateTime}`)
+
+  return tokens.join(' AND ')
 }
 
 function StatCard({
@@ -59,6 +108,9 @@ export function AuditPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
+  const [isQueryBuilderOpen, setIsQueryBuilderOpen] = useState(false)
+  const [isCidrBuilderOpen, setIsCidrBuilderOpen] = useState(false)
+  const [queryBuilderDraft, setQueryBuilderDraft] = useState<QueryBuilderDraft>(defaultQueryBuilderDraft)
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -70,6 +122,25 @@ export function AuditPage() {
   useEffect(() => {
     setPage(1)
   }, [debouncedSearch])
+
+  useEffect(() => {
+    if (!isQueryBuilderOpen) return
+
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsQueryBuilderOpen(false)
+      }
+    }
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onEscape)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', onEscape)
+    }
+  }, [isQueryBuilderOpen])
 
   const params = useMemo(() => ({
     query: debouncedSearch || undefined,
@@ -94,6 +165,14 @@ export function AuditPage() {
   const failedCount = typeof data?.failed_total === 'number'
     ? data.failed_total
     : logs.filter((log) => !log.success).length
+  const visiblePageIPs = useMemo(
+    () => Array.from(new Set(
+      logs
+        .map((log) => (log.ip_address ?? '').trim())
+        .filter((ip) => ip && ip !== '—')
+    )),
+    [logs]
+  )
 
   const updateSort = (field: SortField) => {
     setPage(1)
@@ -111,6 +190,23 @@ export function AuditPage() {
     setSortField('created_at')
     setSortDirection('desc')
     setPage(1)
+    setQueryBuilderDraft(defaultQueryBuilderDraft)
+  }
+
+  const openQueryBuilder = () => {
+    setQueryBuilderDraft((current) => ({
+      ...defaultQueryBuilderDraft,
+      text: current.text || searchInput,
+    }))
+    setIsQueryBuilderOpen(true)
+  }
+
+  const applyQueryBuilder = () => {
+    const query = buildQueryFromDraft(queryBuilderDraft)
+    setSearchInput(query)
+    setDebouncedSearch(query)
+    setPage(1)
+    setIsQueryBuilderOpen(false)
   }
 
   const SortIcon = ({ field }: { field: SortField }) => {
@@ -124,7 +220,6 @@ export function AuditPage() {
     <div className="h-[calc(100vh-6rem)] min-h-0 flex flex-col gap-6 overflow-hidden">
       <div>
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Audit Log</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Use one search bar with tokens like <code>status:failed</code>, <code>user:bas</code>, <code>time:{'>='}2026-03-25</code>, <code>ip:10.0.0.0/24</code>, or <code>action:login AND NOT resource:oidc</code>.</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -163,6 +258,14 @@ export function AuditPage() {
                 </button>
               )}
             </div>
+
+            <button
+              onClick={openQueryBuilder}
+              className="inline-flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+            >
+              <Filter className="w-4 h-4" />
+              Query Builder
+            </button>
 
             <button
               onClick={resetFilters}
@@ -289,6 +392,172 @@ export function AuditPage() {
           </>
         )}
       </div>
+
+      {isQueryBuilderOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-gray-950/45 backdrop-blur-[1px] flex items-center justify-center p-4"
+          onClick={() => setIsQueryBuilderOpen(false)}
+        >
+          <div
+            className="w-full max-w-3xl rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-3">
+              <Filter className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <div>
+                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Build Event Query</h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Create a structured filter, then apply it to the events search.</p>
+              </div>
+              <button
+                onClick={() => setIsQueryBuilderOpen(false)}
+                className="ml-auto p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded"
+                title="Close query builder"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="space-y-1.5">
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide">Text query</span>
+                  <input
+                    value={queryBuilderDraft.text}
+                    onChange={(e) => setQueryBuilderDraft((current) => ({ ...current, text: e.target.value }))}
+                    placeholder="Optional keywords or advanced expression"
+                    className="w-full px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </label>
+
+                <label className="space-y-1.5">
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide">Status</span>
+                  <select
+                    value={queryBuilderDraft.status}
+                    onChange={(e) => setQueryBuilderDraft((current) => ({ ...current, status: e.target.value as QueryStatus }))}
+                    className="w-full px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="any">Any status</option>
+                    <option value="success">Success only</option>
+                    <option value="failed">Failed only</option>
+                  </select>
+                </label>
+
+                <label className="space-y-1.5">
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide">User</span>
+                  <input
+                    value={queryBuilderDraft.user}
+                    onChange={(e) => setQueryBuilderDraft((current) => ({ ...current, user: e.target.value }))}
+                    placeholder="Example: bas"
+                    className="w-full px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </label>
+
+                <label className="space-y-1.5">
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide">Action</span>
+                  <input
+                    value={queryBuilderDraft.action}
+                    onChange={(e) => setQueryBuilderDraft((current) => ({ ...current, action: e.target.value }))}
+                    placeholder="Example: login"
+                    className="w-full px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </label>
+
+                <label className="space-y-1.5">
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide">Resource</span>
+                  <input
+                    value={queryBuilderDraft.resource}
+                    onChange={(e) => setQueryBuilderDraft((current) => ({ ...current, resource: e.target.value }))}
+                    placeholder="Example: client"
+                    className="w-full px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </label>
+
+                <label className="space-y-1.5">
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide">IP or CIDR</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={queryBuilderDraft.ip}
+                      onChange={(e) => setQueryBuilderDraft((current) => ({ ...current, ip: e.target.value }))}
+                      placeholder="Example: 10.0.0.0/24"
+                      className="flex-1 px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsCidrBuilderOpen(true)}
+                      className="shrink-0 px-3 py-2.5 text-xs font-medium text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                    >
+                      Build
+                    </button>
+                  </div>
+                </label>
+
+                <label className="space-y-1.5">
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide">From date and time</span>
+                  <input
+                    type="datetime-local"
+                    value={queryBuilderDraft.fromDateTime}
+                    onChange={(e) => setQueryBuilderDraft((current) => ({ ...current, fromDateTime: e.target.value }))}
+                    className="w-full px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </label>
+
+                <label className="space-y-1.5">
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wide">To date and time</span>
+                  <input
+                    type="datetime-local"
+                    value={queryBuilderDraft.toDateTime}
+                    onChange={(e) => setQueryBuilderDraft((current) => ({ ...current, toDateTime: e.target.value }))}
+                    className="w-full px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </label>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950/40 p-3">
+                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-medium">Preview query</div>
+                <code className="block mt-1.5 text-xs text-gray-700 dark:text-gray-300 break-words">
+                  {buildQueryFromDraft(queryBuilderDraft) || 'No filters selected'}
+                </code>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-800 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2">
+              <button
+                onClick={() => setQueryBuilderDraft(defaultQueryBuilderDraft)}
+                className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                Reset fields
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsQueryBuilderOpen(false)}
+                  className="inline-flex items-center justify-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={applyQueryBuilder}
+                  className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                >
+                  Apply query
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <CIDRBuilderModal
+        isOpen={isCidrBuilderOpen}
+        onClose={() => setIsCidrBuilderOpen(false)}
+        value={queryBuilderDraft.ip}
+        candidateIPs={visiblePageIPs}
+        title="CIDR Filter Builder"
+        description="Build an IP/CIDR filter and check which visible event IPs are in range."
+        onApply={(cidr) => {
+          setQueryBuilderDraft((current) => ({ ...current, ip: cidr }))
+          setIsCidrBuilderOpen(false)
+        }}
+      />
     </div>
   )
 }

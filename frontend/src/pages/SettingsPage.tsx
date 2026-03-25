@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { serverApi, authApi, settingsApi, versionApi } from '@/api'
+import { CIDRBuilderModal } from '@/components/network/CIDRBuilderModal'
 import { useAuth } from '@/context/AuthContext'
 import { Key, Shield, Server, Loader2, Plus, Trash2, Eye, EyeOff, Copy, Check, ShieldCheck, ShieldOff, RefreshCw, Download, GitBranch, Pencil, LogIn, X } from 'lucide-react'
 import { useToast } from '@/context/ToastContext'
@@ -532,6 +533,7 @@ function ServerSettings() {
     mtu: 1420,
   })
   const [endpoint, setEndpoint] = useState('')
+  const [isCIDRBuilderOpen, setIsCIDRBuilderOpen] = useState(false)
 
   const [initialized, setInitialized] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -586,13 +588,22 @@ function ServerSettings() {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Server Address (CIDR)</label>
-          <input
-            type="text"
-            value={form.address}
-            onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="10.0.0.1/24"
-          />
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={form.address}
+              onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))}
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="10.0.0.1/24"
+            />
+            <button
+              type="button"
+              onClick={() => setIsCIDRBuilderOpen(true)}
+              className="px-3 py-2 text-xs font-medium text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+            >
+              CIDR Builder
+            </button>
+          </div>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">DNS Servers</label>
@@ -656,6 +667,18 @@ function ServerSettings() {
           {saved ? 'Saved!' : 'Save Changes'}
         </button>
       </div>
+
+      <CIDRBuilderModal
+        isOpen={isCIDRBuilderOpen}
+        onClose={() => setIsCIDRBuilderOpen(false)}
+        value={form.address}
+        title="Server CIDR Builder"
+        description="Build and verify the WireGuard server subnet." 
+        onApply={(value) => {
+          setForm((current) => ({ ...current, address: value }))
+          setIsCIDRBuilderOpen(false)
+        }}
+      />
     </div>
   )
 }

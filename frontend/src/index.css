@@ -14,6 +14,18 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+input[type='date'],
+input[type='datetime-local'],
+input[type='time'] {
+  color-scheme: light;
+}
+
+.dark input[type='date'],
+.dark input[type='datetime-local'],
+.dark input[type='time'] {
+  color-scheme: dark;
+}
+
 #root {
   min-height: 100vh;
 }
