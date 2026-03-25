@@ -101,7 +101,14 @@ VERSION="$(latest_version)"
 info "Latest version: ${BOLD}${VERSION}${RESET}"
 
 VERSION_INPUT="$(prompt_default "Install version" "$VERSION")"
-[[ "$VERSION_INPUT" == v* ]] || VERSION_INPUT="v${VERSION_INPUT}"
+VERSION_TAG="$VERSION_INPUT"
+VERSION_NUM="${VERSION_INPUT#v}"
+
+if [[ "$VERSION_TAG" == v* ]]; then
+  ALT_VERSION_TAG="$VERSION_NUM"
+else
+  ALT_VERSION_TAG="v${VERSION_TAG}"
+fi
 
 # ── Install directory ────────────────────────────────────────────────────────
 DEFAULT_DIR="$INSTALL_DIR"
@@ -113,13 +120,17 @@ INSTALL_DIR="$(prompt_default "Install directory" "$DEFAULT_DIR")"
 mkdir -p "$INSTALL_DIR"
 
 # ── Download ─────────────────────────────────────────────────────────────────
-ARCHIVE="wiregate_${VERSION_INPUT#v}_${OS}_${ARCH}.tar.gz"
-URL="https://github.com/${REPO}/releases/download/${VERSION_INPUT}/${ARCHIVE}"
+ARCHIVE="wiregate_${VERSION_NUM}_${OS}_${ARCH}.tar.gz"
+URL="https://github.com/${REPO}/releases/download/${VERSION_TAG}/${ARCHIVE}"
+ALT_URL="https://github.com/${REPO}/releases/download/${ALT_VERSION_TAG}/${ARCHIVE}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 info "Downloading ${ARCHIVE}…"
-download "$URL" "${TMP}/${ARCHIVE}"
+if ! download "$URL" "${TMP}/${ARCHIVE}"; then
+  warn "Primary tag '${VERSION_TAG}' not found, retrying with '${ALT_VERSION_TAG}'…"
+  download "$ALT_URL" "${TMP}/${ARCHIVE}" || error "Could not download ${ARCHIVE} from tag '${VERSION_TAG}' or '${ALT_VERSION_TAG}'"
+fi
 
 info "Extracting…"
 tar -xzf "${TMP}/${ARCHIVE}" -C "$TMP"
@@ -244,7 +255,7 @@ EOF
 fi
 
 echo ""
-success "WireGate ${VERSION_INPUT} installed successfully!"
+success "WireGate ${VERSION_TAG} installed successfully!"
 echo ""
 echo -e "  Run manually:  ${BOLD}${INSTALL_DIR}/wiregate${RESET}"
 echo -e "  Set JWT secret: ${BOLD}export WIREGATE_SERVER_JWT_SECRET=\$(openssl rand -hex 32)${RESET}"
