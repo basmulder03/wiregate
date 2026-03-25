@@ -10,7 +10,7 @@ COPY frontend/ .
 RUN pnpm build
 
 # ── Stage 2: Build backend ────────────────────────────────────────────────────
-FROM golang:1.23-alpine AS backend-builder
+FROM golang:1.25-alpine AS backend-builder
 
 # CGO required for sqlite3
 RUN apk add --no-cache gcc musl-dev
