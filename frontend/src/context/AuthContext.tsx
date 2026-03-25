@@ -6,6 +6,7 @@ interface AuthContextType {
   token: string | null
   login: (token: string, user: User) => void
   logout: () => void
+  updateUser: (updates: Partial<User>) => void
   isAuthenticated: boolean
 }
 
@@ -34,8 +35,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }, [])
 
+  const updateUser = useCallback((updates: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return prev
+      const next = { ...prev, ...updates }
+      localStorage.setItem('wiregate_user', JSON.stringify(next))
+      return next
+    })
+  }, [])
+
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!token }}>
+    <AuthContext.Provider value={{ user, token, login, logout, updateUser, isAuthenticated: !!token }}>
       {children}
     </AuthContext.Provider>
   )
