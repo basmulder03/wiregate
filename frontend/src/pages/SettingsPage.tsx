@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { serverApi, authApi, settingsApi, versionApi } from '@/api'
 import { useAuth } from '@/context/AuthContext'
-import { Key, Shield, Server, Loader2, Plus, Trash2, Eye, EyeOff, Copy, Check, ShieldCheck, ShieldOff, RefreshCw, Download, GitBranch, Pencil, LogIn } from 'lucide-react'
+import { Key, Shield, Server, Loader2, Plus, Trash2, Eye, EyeOff, Copy, Check, ShieldCheck, ShieldOff, RefreshCw, Download, GitBranch, Pencil, LogIn, X } from 'lucide-react'
 import { useToast } from '@/context/ToastContext'
 import type { APIKey, UpdateSettings, OIDCConfig } from '@/types'
 
@@ -158,6 +158,7 @@ function OIDCSettings() {
   const { addToast } = useToast()
   const [showAdd, setShowAdd] = useState(false)
   const [editing, setEditing] = useState<OIDCConfig | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   const { data: configs, isLoading } = useQuery({
     queryKey: ['oidc-configs'],
@@ -179,9 +180,13 @@ function OIDCSettings() {
     mutationFn: (id: number) => settingsApi.deleteOIDCConfig(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['oidc-configs'] })
+      setDeletingId(null)
       addToast({ kind: 'success', title: 'Provider deleted', message: 'OIDC provider removed.' })
     },
-    onError: () => addToast({ kind: 'error', title: 'Delete failed', message: 'Could not delete OIDC provider.' }),
+    onError: () => {
+      setDeletingId(null)
+      addToast({ kind: 'error', title: 'Delete failed', message: 'Could not delete OIDC provider.' })
+    },
   })
 
   return (
@@ -250,13 +255,35 @@ function OIDCSettings() {
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
-                    <button
-                      onClick={() => cfg.id != null && deleteMutation.mutate(cfg.id)}
-                      disabled={deleteMutation.isPending}
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {deletingId === cfg.id ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => cfg.id != null && deleteMutation.mutate(cfg.id)}
+                          disabled={deleteMutation.isPending}
+                          className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          title="Confirm delete"
+                        >
+                          {deleteMutation.isPending
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <Check className="w-3.5 h-3.5" />}
+                        </button>
+                        <button
+                          onClick={() => setDeletingId(null)}
+                          className="p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                          title="Cancel"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => cfg.id != null && setDeletingId(cfg.id)}
+                        disabled={deleteMutation.isPending}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -274,6 +301,7 @@ function OIDCSettings() {
 
 function SecuritySettings() {
   const { user, updateUser } = useAuth()
+  const { addToast } = useToast()
   const totpEnabled = user?.totp_enabled ?? false
 
   const [view, setView] = useState<TOTPView>('idle')
@@ -292,6 +320,7 @@ function SecuritySettings() {
       setCode('')
       setError('')
       setView('confirm')
+      addToast({ kind: 'info', title: 'TOTP setup started', message: 'Scan the QR code and confirm with a 6-digit code.' })
     },
     onError: () => setError('Failed to initiate TOTP setup.'),
   })
@@ -303,6 +332,7 @@ function SecuritySettings() {
       setView('idle')
       setCode('')
       setError('')
+      addToast({ kind: 'success', title: 'TOTP enabled', message: 'Two-factor authentication is now required at sign-in.' })
     },
     onError: () => setError('Invalid code. Please try again.'),
   })
@@ -314,6 +344,7 @@ function SecuritySettings() {
       setView('idle')
       setCode('')
       setError('')
+      addToast({ kind: 'success', title: 'TOTP disabled', message: 'Two-factor authentication has been turned off.' })
     },
     onError: () => setError('Invalid code. Please try again.'),
   })
@@ -632,6 +663,7 @@ function ServerSettings() {
 function APIKeys() {
   const queryClient = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
   const [newKeyName, setNewKeyName] = useState('')
   const [createdKey, setCreatedKey] = useState<string | null>(null)
   const [showKey, setShowKey] = useState(false)
@@ -653,7 +685,11 @@ function APIKeys() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => authApi.deleteAPIKey(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['api-keys'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] })
+      setDeletingId(null)
+    },
+    onError: () => setDeletingId(null),
   })
 
   const handleCopy = () => {
@@ -738,12 +774,35 @@ function APIKeys() {
                   {key.last_used ? new Date(key.last_used).toLocaleDateString() : 'Never'}
                 </td>
                 <td className="py-3 text-right">
-                  <button
-                    onClick={() => deleteMutation.mutate(key.id)}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {deletingId === key.id ? (
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => deleteMutation.mutate(key.id)}
+                        disabled={deleteMutation.isPending}
+                        className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                        title="Confirm delete"
+                      >
+                        {deleteMutation.isPending
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          : <Check className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
+                        onClick={() => setDeletingId(null)}
+                        className="p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                        title="Cancel"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setDeletingId(key.id)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                      title="Delete API key"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
