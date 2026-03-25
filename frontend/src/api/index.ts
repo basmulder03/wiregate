@@ -32,9 +32,24 @@ export const authApi = {
   listOIDCProviders: () => api.get<OIDCProvider[]>('/auth/oidc/providers'),
 
   createAPIKey: (name: string, scopes?: string, expiresAt?: string) =>
-    api.post<{ key: string; api_key: APIKey }>('/auth/api-keys', { name, scopes, expires_at: expiresAt }, { _toast: true }),
+    api.post<{ key: string; api_key: APIKey }>('/auth/api-keys', { name, scopes, expires_at: expiresAt }, {
+      _toast: {
+        success: true,
+        error: true,
+        successTitle: 'API key created',
+        successMessage: 'Copy and store the new key now.',
+        errorTitle: 'Create failed',
+      },
+    }),
   listAPIKeys: () => api.get<APIKey[]>('/auth/api-keys'),
-  deleteAPIKey: (id: number) => api.delete(`/auth/api-keys/${id}`, { _toast: true }),
+  deleteAPIKey: (id: number) => api.delete(`/auth/api-keys/${id}`, {
+    _toast: {
+      success: true,
+      error: true,
+      successTitle: 'API key deleted',
+      errorTitle: 'Delete failed',
+    },
+  }),
 }
 
 // Setup status
@@ -63,9 +78,31 @@ export const clientsApi = {
     mtu?: number
     allowed_ips?: string
     expires_at?: string
-  }) => api.post<Client>('/clients', data, { _toast: true }),
-  update: (id: number, data: Partial<Client>) => api.put<Client>(`/clients/${id}`, data, { _toast: true }),
-  delete: (id: number) => api.delete(`/clients/${id}`, { _toast: true }),
+  }) => api.post<Client>('/clients', data, {
+    _toast: {
+      success: true,
+      error: true,
+      successTitle: 'Client added',
+      successMessage: 'Configuration and QR code are ready to use.',
+      errorTitle: 'Create failed',
+    },
+  }),
+  update: (id: number, data: Partial<Client>) => api.put<Client>(`/clients/${id}`, data, {
+    _toast: {
+      success: true,
+      error: true,
+      successTitle: data.enabled === true ? 'Client enabled' : data.enabled === false ? 'Client disabled' : 'Client updated',
+      errorTitle: 'Update failed',
+    },
+  }),
+  delete: (id: number) => api.delete(`/clients/${id}`, {
+    _toast: {
+      success: true,
+      error: true,
+      successTitle: 'Client deleted',
+      errorTitle: 'Delete failed',
+    },
+  }),
   getConfig: (id: number) => api.get<{ config: string; filename: string }>(`/clients/${id}/config`),
   getQR: (id: number) => api.get<Blob>(`/clients/${id}/qr`, { responseType: 'blob' }),
 }
@@ -74,7 +111,14 @@ export const clientsApi = {
 export const connectionsApi = {
   list: () => api.get<ConnectedPeer[]>('/connections'),
   disconnect: (pubkey: string) =>
-    api.delete(`/connections/${encodeURIComponent(pubkey)}`, { _toast: true }),
+    api.delete(`/connections/${encodeURIComponent(pubkey)}`, {
+      _toast: {
+        success: true,
+        error: true,
+        successTitle: 'Peer disconnected',
+        errorTitle: 'Disconnect failed',
+      },
+    }),
 }
 
 // Audit

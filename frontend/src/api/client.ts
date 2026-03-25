@@ -5,7 +5,9 @@ type ToastOptions = {
   success?: boolean
   error?: boolean
   successTitle?: string
+  successMessage?: string
   errorTitle?: string
+  errorMessage?: string
 }
 
 // Extend axios config so only explicitly user-triggered requests show toasts.
@@ -28,7 +30,9 @@ function getToastOptions(value: boolean | ToastOptions | undefined): ToastOption
     success: value.success ?? false,
     error: value.error ?? false,
     successTitle: value.successTitle,
+    successMessage: value.successMessage,
     errorTitle: value.errorTitle,
+    errorMessage: value.errorMessage,
   }
 }
 
@@ -61,7 +65,7 @@ api.interceptors.response.use(
         patch:  'Updated successfully',
         delete: 'Deleted successfully',
       }
-      toast('success', toastOptions.successTitle ?? titles[method] ?? 'Done')
+      toast('success', toastOptions.successTitle ?? titles[method] ?? 'Done', toastOptions.successMessage)
     }
 
     return response
@@ -84,7 +88,7 @@ api.interceptors.response.use(
       toast(
         'error',
         toastOptions.errorTitle ?? 'Request failed',
-        serverMsg ?? error.message ?? 'An unexpected error occurred.',
+        toastOptions.errorMessage ?? serverMsg ?? error.message ?? 'An unexpected error occurred.',
       )
     }
 

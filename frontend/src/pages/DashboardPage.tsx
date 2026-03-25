@@ -12,6 +12,7 @@ import {
   WifiOff,
   AlertTriangle,
   CheckCircle2,
+  Loader2,
 } from 'lucide-react'
 import { Badge } from '@/lib/utils'
 import { formatBytes } from '@/lib/utils'
@@ -73,6 +74,14 @@ export function DashboardPage() {
 
   const isRunning = status?.running
   const isInstalled = status?.installed
+  const activeAction = startMutation.isPending
+    ? 'Starting WireGuard interface...'
+    : stopMutation.isPending
+      ? 'Stopping WireGuard interface...'
+      : restartMutation.isPending
+        ? 'Restarting WireGuard interface...'
+        : null
+  const controlsBusy = startMutation.isPending || stopMutation.isPending || restartMutation.isPending
 
   return (
     <div className="space-y-6">
@@ -89,7 +98,7 @@ export function DashboardPage() {
             <>
               <button
                 onClick={() => startMutation.mutate()}
-                disabled={isRunning || startMutation.isPending}
+                disabled={isRunning || controlsBusy}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <Play className="w-3.5 h-3.5" />
@@ -97,7 +106,7 @@ export function DashboardPage() {
               </button>
               <button
                 onClick={() => stopMutation.mutate()}
-                disabled={!isRunning || stopMutation.isPending}
+                disabled={!isRunning || controlsBusy}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <Square className="w-3.5 h-3.5" />
@@ -105,7 +114,7 @@ export function DashboardPage() {
               </button>
               <button
                 onClick={() => restartMutation.mutate()}
-                disabled={restartMutation.isPending}
+                disabled={controlsBusy}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
@@ -135,25 +144,33 @@ export function DashboardPage() {
 
       {/* Status banner */}
       {isInstalled && (
-        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
+        <div className={`px-4 py-3 rounded-xl border ${
           isRunning
             ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
             : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
         }`}>
-          {isRunning
-            ? <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
-            : <WifiOff className="w-4 h-4 text-gray-400 dark:text-gray-500" />
-          }
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-              WireGuard is {isRunning ? 'running' : 'stopped'}
-            </span>
-            {status?.systemd_status && status.systemd_status !== 'inactive' && status.systemd_status !== 'n/a' && (
-              <Badge variant={status.systemd_status === 'active' ? 'success' : 'secondary'}>
-                systemd: {status.systemd_status}
-              </Badge>
-            )}
+          <div className="flex items-center gap-3">
+            {isRunning
+              ? <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
+              : <WifiOff className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+            }
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                WireGuard is {isRunning ? 'running' : 'stopped'}
+              </span>
+              {status?.systemd_status && status.systemd_status !== 'inactive' && status.systemd_status !== 'n/a' && (
+                <Badge variant={status.systemd_status === 'active' ? 'success' : 'secondary'}>
+                  systemd: {status.systemd_status}
+                </Badge>
+              )}
+            </div>
           </div>
+          {activeAction && (
+            <div className="mt-2 flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              {activeAction}
+            </div>
+          )}
         </div>
       )}
 

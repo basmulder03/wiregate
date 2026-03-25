@@ -11,6 +11,7 @@ import {
   ToggleRight,
   Copy,
   Check,
+  X,
   QrCode,
   Loader2,
   Users,
@@ -21,12 +22,10 @@ function AddClientModal({ onClose, onCreated }: { onClose: () => void; onCreated
   const [description, setDescription] = useState('')
   const [dns, setDns] = useState('1.1.1.1, 1.0.0.1')
   const [expiresAt, setExpiresAt] = useState('')
-  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
     setLoading(true)
     try {
       await clientsApi.create({
@@ -37,9 +36,8 @@ function AddClientModal({ onClose, onCreated }: { onClose: () => void; onCreated
       })
       onCreated()
       onClose()
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      setError(msg || 'Failed to create client')
+    } catch {
+      // Toast handled globally by axios interceptor.
     } finally {
       setLoading(false)
     }
@@ -97,9 +95,6 @@ function AddClientModal({ onClose, onCreated }: { onClose: () => void; onCreated
             />
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Leave blank for no expiry</p>
           </div>
-          {error && (
-            <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>
-          )}
         </form>
         <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-800 flex items-center justify-end gap-3">
           <button
@@ -310,6 +305,7 @@ export function ClientsPage() {
   const queryClient = useQueryClient()
   const [showAdd, setShowAdd] = useState(false)
   const [configClient, setConfigClient] = useState<Client | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   const { data: clients, isLoading } = useQuery({
     queryKey: ['clients'],
@@ -326,12 +322,6 @@ export function ClientsPage() {
       clientsApi.update(id, { enabled }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
   })
-
-  const handleDelete = (client: Client) => {
-    if (confirm(`Delete client "${client.name}"? This will revoke their access.`)) {
-      deleteMutation.mutate(client.id)
-    }
-  }
 
   return (
     <div className="space-y-6">
@@ -408,6 +398,7 @@ export function ClientsPage() {
                         <button
                           onClick={() => toggleMutation.mutate({ id: client.id, enabled: !client.enabled })}
                           title={client.enabled ? 'Disable' : 'Enable'}
+                          disabled={toggleMutation.isPending}
                           className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                         >
                           {client.enabled
@@ -415,13 +406,35 @@ export function ClientsPage() {
                             : <ToggleLeft className="w-4 h-4" />
                           }
                         </button>
-                        <button
-                          onClick={() => handleDelete(client)}
-                          title="Delete"
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {deletingId === client.id ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => deleteMutation.mutate(client.id)}
+                              disabled={deleteMutation.isPending}
+                              title="Confirm delete"
+                              className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            >
+                              {deleteMutation.isPending
+                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                : <Check className="w-4 h-4" />}
+                            </button>
+                            <button
+                              onClick={() => setDeletingId(null)}
+                              title="Cancel"
+                              className="p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setDeletingId(client.id)}
+                            title="Delete"
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

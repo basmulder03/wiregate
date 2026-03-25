@@ -1,10 +1,12 @@
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { connectionsApi } from '@/api'
 import { formatBytes, formatHandshake, truncateKey } from '@/lib/utils'
-import { Activity, Wifi, UserX, Loader2, RefreshCw } from 'lucide-react'
+import { Activity, Wifi, UserX, Loader2, RefreshCw, Check, X } from 'lucide-react'
 
 export function ConnectionsPage() {
   const queryClient = useQueryClient()
+  const [disconnectingKey, setDisconnectingKey] = useState<string | null>(null)
 
   const { data: connections, isLoading, dataUpdatedAt } = useQuery({
     queryKey: ['connections'],
@@ -16,12 +18,6 @@ export function ConnectionsPage() {
     mutationFn: (pubkey: string) => connectionsApi.disconnect(pubkey),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['connections'] }),
   })
-
-  const handleDisconnect = (pubkey: string, name?: string) => {
-    if (confirm(`Disconnect ${name || 'this peer'}? They will need to reconnect.`)) {
-      disconnectMutation.mutate(pubkey)
-    }
-  }
 
   const lastUpdated = dataUpdatedAt
     ? new Date(dataUpdatedAt).toLocaleTimeString()
@@ -123,14 +119,37 @@ export function ConnectionsPage() {
                       <span className="text-green-600 dark:text-green-400">↑</span> {formatBytes(peer.TransferTx)}
                     </td>
                     <td className="px-5 py-3.5 text-right">
-                      <button
-                        onClick={() => handleDisconnect(peer.PublicKey, peer.client_name)}
-                        title="Disconnect peer"
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors ml-auto"
-                      >
-                        <UserX className="w-3.5 h-3.5" />
-                        Kill
-                      </button>
+                      {disconnectingKey === peer.PublicKey ? (
+                        <div className="flex items-center gap-1 justify-end">
+                          <button
+                            onClick={() => disconnectMutation.mutate(peer.PublicKey, { onSuccess: () => setDisconnectingKey(null), onError: () => setDisconnectingKey(null) })}
+                            disabled={disconnectMutation.isPending}
+                            title="Confirm disconnect"
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors ml-auto"
+                          >
+                            {disconnectMutation.isPending
+                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              : <Check className="w-3.5 h-3.5" />}
+                            Confirm
+                          </button>
+                          <button
+                            onClick={() => setDisconnectingKey(null)}
+                            title="Cancel"
+                            className="p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setDisconnectingKey(peer.PublicKey)}
+                          title="Disconnect peer"
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors ml-auto"
+                        >
+                          <UserX className="w-3.5 h-3.5" />
+                          Disconnect
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
