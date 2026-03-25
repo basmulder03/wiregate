@@ -69,38 +69,64 @@ release-windows-amd64:
 ## Full dev mode: set up wgdev0, then run backend (air) + frontend (Vite) side-by-side.
 ## Press Ctrl-C to stop both; the trap will tear down the wgdev0 interface.
 dev:
-	@scripts/dev-setup.sh
+	@bash scripts/dev-setup.sh
 	@echo ""
 	@echo "Starting backend (air hot-reload) and frontend (Vite HMR) ..."
 	@echo "Backend → http://localhost:8080  |  Frontend → http://localhost:5173"
 	@echo ""
-	@trap 'kill 0; scripts/dev-teardown.sh' INT TERM EXIT; \
+	@AIR_BIN="$$(command -v air || true)"; \
+	  if [ -z "$$AIR_BIN" ]; then \
+	    AIR_BIN="$$(go env GOPATH)/bin/air"; \
+	  fi; \
+	  if [ ! -x "$$AIR_BIN" ]; then \
+	    echo "[dev] air not found; installing via 'go install github.com/air-verse/air@latest' ..."; \
+	    go install github.com/air-verse/air@latest; \
+	    AIR_BIN="$$(go env GOPATH)/bin/air"; \
+	  fi; \
+	  if [ ! -d frontend/node_modules ]; then \
+	    echo "[dev] frontend/node_modules missing; running 'pnpm install --frozen-lockfile' ..."; \
+	    cd frontend && pnpm install --frozen-lockfile; \
+	  fi; \
+	  trap 'kill 0; bash scripts/dev-teardown.sh' INT TERM EXIT; \
 	  ( export WIREGATE_DEV_MODE=1; \
 	    export WIREGATE_WIREGUARD_INTERFACE=wgdev0; \
 	    export WIREGATE_WIREGUARD_CONFIG_DIR="$${XDG_RUNTIME_DIR:-/tmp/wiregate-$${USER:-dev}}/wireguard"; \
-	    cd backend && air ) & \
+	    cd backend && "$$AIR_BIN" ) & \
 	  ( cd frontend && pnpm dev ) & \
 	  wait
 
 ## Run only the backend with air hot-reload (loads .env.dev automatically).
 dev-backend:
-	@scripts/dev-setup.sh
+	@bash scripts/dev-setup.sh
+	@AIR_BIN="$$(command -v air || true)"; \
+	if [ -z "$$AIR_BIN" ]; then \
+	  AIR_BIN="$$(go env GOPATH)/bin/air"; \
+	fi; \
+	if [ ! -x "$$AIR_BIN" ]; then \
+	  echo "[dev-backend] air not found; installing via 'go install github.com/air-verse/air@latest' ..."; \
+	  go install github.com/air-verse/air@latest; \
+	  AIR_BIN="$$(go env GOPATH)/bin/air"; \
+	fi; \
 	export WIREGATE_DEV_MODE=1; \
 	export WIREGATE_WIREGUARD_INTERFACE=wgdev0; \
 	export WIREGATE_WIREGUARD_CONFIG_DIR="$${XDG_RUNTIME_DIR:-/tmp/wiregate-$${USER:-dev}}/wireguard"; \
-	cd backend && air
+	cd backend && "$$AIR_BIN"
 
 ## Run only the Vite frontend dev server (proxies /api → :8080).
 dev-frontend:
+	@if [ ! -d frontend/node_modules ]; then \
+	  echo "[dev-frontend] frontend/node_modules missing; running 'pnpm install --frozen-lockfile' ..."; \
+	  cd frontend && pnpm install --frozen-lockfile; \
+	fi
 	cd frontend && pnpm dev
 
 ## Create the wgdev0 WireGuard interface used during local development.
 dev-setup:
-	@scripts/dev-setup.sh
+	@bash scripts/dev-setup.sh
 
 ## Tear down the wgdev0 interface created by dev-setup.
 dev-teardown:
-	@scripts/dev-teardown.sh
+	@bash scripts/dev-teardown.sh
 
 ## Install Go dev tools (air for hot-reload).
 tools:
