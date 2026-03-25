@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 
@@ -23,6 +24,8 @@ var (
 )
 
 func main() {
+	log.SetOutput(io.MultiWriter(os.Stdout, api.ProcessLogWriter()))
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)

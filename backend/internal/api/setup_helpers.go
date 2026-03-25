@@ -37,6 +37,7 @@ func (h *Handler) GetSetupDefaults(c *gin.Context) {
 
 	detectedCIDRs, usedNets, detectedIPs := detectHostIPv4Networks()
 	systemResolvers := detectSystemResolvers()
+	defaultSourceIP, defaultEgressIface := detectDefaultRouteInfo()
 
 	address := pickSuggestedAddress(usedNets, devMode)
 	dns := pickSuggestedDNS(systemResolvers, devMode)
@@ -48,7 +49,12 @@ func (h *Handler) GetSetupDefaults(c *gin.Context) {
 	if iface == "" {
 		iface = "wg0"
 	}
-	endpoint := pickSuggestedEndpoint(detectedIPs, listenPort, devMode)
+	if defaultEgressIface == "" {
+		defaultEgressIface = "eth0"
+	}
+	endpoint := pickSuggestedEndpoint(detectedIPs, defaultSourceIP, address, listenPort, devMode)
+	postUp := buildDefaultPostUp(defaultEgressIface)
+	postDown := buildDefaultPostDown(defaultEgressIface)
 
 	var existing models.WireGuardServer
 	if err := h.db.First(&existing).Error; err == nil {
@@ -64,6 +70,12 @@ func (h *Handler) GetSetupDefaults(c *gin.Context) {
 		if existing.ListenPort > 0 {
 			listenPort = existing.ListenPort
 		}
+		if strings.TrimSpace(existing.PostUp) != "" {
+			postUp = existing.PostUp
+		}
+		if strings.TrimSpace(existing.PostDown) != "" {
+			postDown = existing.PostDown
+		}
 	}
 
 	if savedEndpoint := h.getSavedPublicEndpoint(); savedEndpoint != "" {
@@ -77,8 +89,12 @@ func (h *Handler) GetSetupDefaults(c *gin.Context) {
 		"listen_port":         listenPort,
 		"dns":                 dns,
 		"endpoint":            endpoint,
+		"egress_interface":    defaultEgressIface,
+		"post_up":             postUp,
+		"post_down":           postDown,
 		"detected_ipv4_cidrs": detectedCIDRs,
 		"detected_ipv4_ips":   detectedIPs,
+		"default_source_ip":   defaultSourceIP,
 		"detected_dns":        systemResolvers,
 	})
 }
@@ -230,15 +246,21 @@ func detectHostIPv4Networks() ([]string, []*net.IPNet, []string) {
 	return cidrs, usedNets, ips
 }
 
-func pickSuggestedEndpoint(detectedIPs []string, listenPort int, devMode bool) string {
+func pickSuggestedEndpoint(detectedIPs []string, preferredIP, serverCIDR string, listenPort int, devMode bool) string {
 	if listenPort <= 0 {
 		listenPort = 51820
+	}
+
+	if preferredIP = strings.TrimSpace(preferredIP); preferredIP != "" {
+		if net.ParseIP(preferredIP) != nil && !isIPInCIDR(preferredIP, serverCIDR) {
+			return net.JoinHostPort(preferredIP, strconv.Itoa(listenPort))
+		}
 	}
 
 	selectedIP := ""
 	if devMode {
 		for _, ip := range detectedIPs {
-			if classifyAddress(ip) == "private" {
+			if classifyAddress(ip) == "private" && !isIPInCIDR(ip, serverCIDR) {
 				selectedIP = ip
 				break
 			}
@@ -247,7 +269,7 @@ func pickSuggestedEndpoint(detectedIPs []string, listenPort int, devMode bool) s
 
 	if selectedIP == "" {
 		for _, ip := range detectedIPs {
-			if classifyAddress(ip) == "public" {
+			if classifyAddress(ip) == "public" && !isIPInCIDR(ip, serverCIDR) {
 				selectedIP = ip
 				break
 			}
@@ -256,7 +278,7 @@ func pickSuggestedEndpoint(detectedIPs []string, listenPort int, devMode bool) s
 
 	if selectedIP == "" {
 		for _, ip := range detectedIPs {
-			if classifyAddress(ip) == "private" {
+			if classifyAddress(ip) == "private" && !isIPInCIDR(ip, serverCIDR) {
 				selectedIP = ip
 				break
 			}
@@ -268,6 +290,82 @@ func pickSuggestedEndpoint(detectedIPs []string, listenPort int, devMode bool) s
 	}
 
 	return net.JoinHostPort(selectedIP, strconv.Itoa(listenPort))
+}
+
+func buildDefaultPostUp(egressIface string) string {
+	iface := strings.TrimSpace(egressIface)
+	if iface == "" {
+		iface = "eth0"
+	}
+	return "iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -o " + iface + " -j MASQUERADE"
+}
+
+func buildDefaultPostDown(egressIface string) string {
+	iface := strings.TrimSpace(egressIface)
+	if iface == "" {
+		iface = "eth0"
+	}
+	return "iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -o " + iface + " -j MASQUERADE"
+}
+
+func detectDefaultRouteInfo() (string, string) {
+	conn, err := net.Dial("udp4", "1.1.1.1:53")
+	if err != nil {
+		return "", ""
+	}
+	defer conn.Close()
+
+	udpAddr, ok := conn.LocalAddr().(*net.UDPAddr)
+	if !ok || udpAddr.IP == nil {
+		return "", ""
+	}
+
+	sourceIP := udpAddr.IP.To4()
+	if sourceIP == nil {
+		return "", ""
+	}
+
+	interfaceName := interfaceNameForIP(sourceIP.String())
+	return sourceIP.String(), interfaceName
+}
+
+func interfaceNameForIP(ip string) string {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return ""
+	}
+
+	for _, iface := range interfaces {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			netAddr, ok := addr.(*net.IPNet)
+			if !ok || netAddr.IP.To4() == nil {
+				continue
+			}
+			if netAddr.IP.String() == ip {
+				return iface.Name
+			}
+		}
+	}
+
+	return ""
+}
+
+func isIPInCIDR(ip, cidr string) bool {
+	parsedIP := net.ParseIP(strings.TrimSpace(ip))
+	if parsedIP == nil {
+		return false
+	}
+
+	_, network, err := net.ParseCIDR(strings.TrimSpace(cidr))
+	if err != nil || network == nil {
+		return false
+	}
+
+	return network.Contains(parsedIP)
 }
 
 func pickSuggestedAddress(usedNets []*net.IPNet, devMode bool) string {

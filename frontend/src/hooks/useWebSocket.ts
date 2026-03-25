@@ -21,6 +21,11 @@ export function useWebSocket({ onMessage, enabled = true }: UseWebSocketOptions)
     const token = localStorage.getItem('wiregate_token')
     if (!token || !enabled) return
 
+    const current = wsRef.current
+    if (current && (current.readyState === WebSocket.OPEN || current.readyState === WebSocket.CONNECTING)) {
+      return
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const wsUrl = `${protocol}//${window.location.host}/api/ws`
 
@@ -41,7 +46,12 @@ export function useWebSocket({ onMessage, enabled = true }: UseWebSocketOptions)
       }
     }
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
+      // Do not spin reconnect loops when authentication is rejected.
+      if (event.code === 1008) {
+        shouldReconnectRef.current = false
+        return
+      }
       if (enabled && shouldReconnectRef.current) {
         reconnectTimerRef.current = setTimeout(connect, 5000)
       }
@@ -62,7 +72,9 @@ export function useWebSocket({ onMessage, enabled = true }: UseWebSocketOptions)
         clearTimeout(reconnectTimerRef.current)
       }
       if (wsRef.current) {
-        wsRef.current.close()
+        if (wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.close()
+        }
         wsRef.current = null
       }
     }

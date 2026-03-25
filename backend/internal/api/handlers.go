@@ -665,6 +665,9 @@ func (h *Handler) GetConnections(c *gin.Context) {
 		return
 	}
 
+	includeAll := strings.EqualFold(strings.TrimSpace(c.Query("all")), "true")
+	nowUnix := time.Now().Unix()
+
 	// Enrich with client names
 	type EnrichedPeer struct {
 		wireguard.ConnectedPeer
@@ -674,6 +677,10 @@ func (h *Handler) GetConnections(c *gin.Context) {
 
 	var enriched []EnrichedPeer
 	for _, peer := range peers {
+		if !includeAll && !isPeerCurrentlyConnected(peer, nowUnix) {
+			continue
+		}
+
 		ep := EnrichedPeer{ConnectedPeer: peer}
 		var client models.Client
 		if h.db.Where("public_key = ?", peer.PublicKey).First(&client).Error == nil {
@@ -684,6 +691,21 @@ func (h *Handler) GetConnections(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, enriched)
+}
+
+func isPeerCurrentlyConnected(peer wireguard.ConnectedPeer, nowUnix int64) bool {
+	if strings.TrimSpace(peer.Endpoint) == "" {
+		return false
+	}
+
+	handshakeUnix, err := strconv.ParseInt(strings.TrimSpace(peer.LatestHandshake), 10, 64)
+	if err != nil || handshakeUnix <= 0 {
+		return false
+	}
+
+	// Consider a peer active when the latest handshake is recent.
+	// Keep the window tight so one-off tests drop out quickly.
+	return nowUnix-handshakeUnix <= 60
 }
 
 // DisconnectPeer disconnects a specific peer by public key

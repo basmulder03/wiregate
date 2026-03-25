@@ -17,30 +17,13 @@ type systemLogEntry struct {
 	Timestamp string `json:"timestamp"`
 	Service   string `json:"service"`
 	Unit      string `json:"unit"`
+	Source    string `json:"source"`
 	Message   string `json:"message"`
 }
 
 // GetSystemLogs returns recent journal entries for WireGate and WireGuard.
 // GET /api/system/logs
 func (h *Handler) GetSystemLogs(c *gin.Context) {
-	if runtime.GOOS != "linux" {
-		c.JSON(http.StatusOK, gin.H{
-			"supported": false,
-			"error":     "system logs endpoint is only supported on Linux",
-			"entries":   []systemLogEntry{},
-		})
-		return
-	}
-
-	if _, err := exec.LookPath("journalctl"); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"supported": false,
-			"error":     "journalctl not found on system",
-			"entries":   []systemLogEntry{},
-		})
-		return
-	}
-
 	lines := 200
 	if raw := strings.TrimSpace(c.Query("lines")); raw != "" {
 		if parsed, err := strconv.Atoi(raw); err == nil {
@@ -92,31 +75,91 @@ func (h *Handler) GetSystemLogs(c *gin.Context) {
 	for _, service := range selectedServices {
 		units = append(units, availableUnits[service])
 	}
+	entries := make([]systemLogEntry, 0)
+	warnings := make([]string, 0)
+	journalAvailable := runtime.GOOS == "linux"
 
-	args := []string{"--no-pager", "--output=short-iso", "-n", strconv.Itoa(lines)}
-	for _, unit := range units {
-		args = append(args, "-u", unit)
+	if journalAvailable {
+		if _, err := exec.LookPath("journalctl"); err != nil {
+			journalAvailable = false
+			warnings = append(warnings, "journalctl not found; using process logs when available")
+		}
+	} else {
+		warnings = append(warnings, "journald logs are only available on Linux")
 	}
 
-	out, err := exec.Command("journalctl", args...).CombinedOutput()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "failed to read journal logs",
-			"details": strings.TrimSpace(string(out)),
-		})
-		return
+	for _, service := range selectedServices {
+		unit := availableUnits[service]
+
+		if journalAvailable {
+			serviceEntries, jWarn := readJournalUnit(service, unit, lines)
+			if jWarn != "" {
+				warnings = append(warnings, jWarn)
+			}
+			entries = append(entries, serviceEntries...)
+		}
+
+		if service == "wiregate" && (isDevModeEnv() || !journalAvailable || countServiceEntries(entries, "wiregate") == 0) {
+			for _, item := range defaultProcessLogs.snapshot(lines) {
+				entries = append(entries, systemLogEntry{
+					Timestamp: item.Timestamp.Format(time.RFC3339),
+					Service:   "wiregate",
+					Unit:      "wiregate-process",
+					Source:    "process",
+					Message:   item.Message,
+				})
+			}
+		}
 	}
 
-	entries := parseJournalEntries(string(out), units)
+	if len(entries) == 0 && len(warnings) == 0 {
+		warnings = append(warnings, "no logs available for selected services")
+	}
+
+	sort.SliceStable(entries, func(i, j int) bool {
+		return entries[i].Timestamp < entries[j].Timestamp
+	})
 
 	c.JSON(http.StatusOK, gin.H{
-		"supported":    true,
+		"supported":    len(entries) > 0 || journalAvailable,
 		"services":     selectedServices,
 		"units":        units,
 		"lines":        lines,
 		"generated_at": time.Now().UTC().Format(time.RFC3339),
+		"warnings":     warnings,
 		"entries":      entries,
 	})
+}
+
+func readJournalUnit(service, unit string, lines int) ([]systemLogEntry, string) {
+	args := []string{"--no-pager", "--output=short-iso", "-n", strconv.Itoa(lines), "-u", unit}
+	out, err := exec.Command("journalctl", args...).CombinedOutput()
+	text := strings.TrimSpace(string(out))
+
+	if err != nil {
+		if strings.Contains(text, "No entries") || strings.Contains(text, "No journal files") {
+			return []systemLogEntry{}, ""
+		}
+		return []systemLogEntry{}, "journal read failed for " + unit + ": " + text
+	}
+
+	entries := parseJournalEntries(string(out), []string{unit})
+	for i := range entries {
+		entries[i].Service = service
+		entries[i].Source = "journal"
+	}
+
+	return entries, ""
+}
+
+func countServiceEntries(entries []systemLogEntry, service string) int {
+	count := 0
+	for _, entry := range entries {
+		if entry.Service == service {
+			count++
+		}
+	}
+	return count
 }
 
 func parseJournalEntries(raw string, requestedUnits []string) []systemLogEntry {
@@ -168,6 +211,7 @@ func parseJournalEntries(raw string, requestedUnits []string) []systemLogEntry {
 			Timestamp: timestamp,
 			Service:   service,
 			Unit:      unit,
+			Source:    "journal",
 			Message:   message,
 		})
 	}

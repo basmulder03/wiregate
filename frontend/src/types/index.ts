@@ -103,8 +103,12 @@ export interface SetupDefaultsResponse {
   listen_port: number
   dns: string
   endpoint: string
+  egress_interface?: string
+  post_up?: string
+  post_down?: string
   detected_ipv4_cidrs: string[]
   detected_ipv4_ips: string[]
+  default_source_ip?: string
   detected_dns: string[]
 }
 
@@ -171,6 +175,7 @@ export interface SystemLogEntry {
   timestamp: string
   service: 'wiregate' | 'wireguard'
   unit: string
+  source?: 'journal' | 'process'
   message: string
 }
 
@@ -182,6 +187,7 @@ export interface SystemLogsResponse {
   units?: string[]
   lines?: number
   generated_at?: string
+  warnings?: string[]
   entries: SystemLogEntry[]
 }
 

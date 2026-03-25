@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { systemApi } from '@/api'
+import { connectionsApi, systemApi } from '@/api'
 import { Activity, Loader2, RefreshCw, ScrollText } from 'lucide-react'
 
 const LOG_LINE_OPTIONS = [100, 200, 500, 1000]
@@ -27,6 +27,27 @@ export function LogsPage() {
     refetchInterval: live ? 3000 : false,
     enabled: services.length > 0,
   })
+
+  const { data: peersData } = useQuery({
+    queryKey: ['connections', 'logs-page'],
+    queryFn: () => connectionsApi.list().then((r) => r.data),
+    refetchInterval: live ? 3000 : false,
+  })
+
+  const peers = useMemo(() => (Array.isArray(peersData) ? peersData : []), [peersData])
+
+  const wgStats = useMemo(() => {
+    const active = peers.length
+    let rx = 0
+    let tx = 0
+
+    for (const peer of peers) {
+      rx += Number(peer.TransferRx || 0)
+      tx += Number(peer.TransferTx || 0)
+    }
+
+    return { active, rx, tx }
+  }, [peers])
 
   const filteredEntries = useMemo(() => {
     const needle = search.trim().toLowerCase()
@@ -112,6 +133,61 @@ export function LogsPage() {
 
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+          <Activity className="w-4 h-4" />
+          <span className="font-medium">Live WireGuard State</span>
+          <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">{wgStats.active} active peers</span>
+        </div>
+
+        <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+          <div className="rounded-lg bg-gray-50 dark:bg-gray-950/40 px-3 py-2">
+            <div className="text-gray-500 dark:text-gray-400">Peers</div>
+            <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{wgStats.active}</div>
+          </div>
+          <div className="rounded-lg bg-gray-50 dark:bg-gray-950/40 px-3 py-2">
+            <div className="text-gray-500 dark:text-gray-400">Total RX</div>
+            <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{formatBytes(wgStats.rx)}</div>
+          </div>
+          <div className="rounded-lg bg-gray-50 dark:bg-gray-950/40 px-3 py-2">
+            <div className="text-gray-500 dark:text-gray-400">Total TX</div>
+            <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{formatBytes(wgStats.tx)}</div>
+          </div>
+        </div>
+
+        {peers.length === 0 ? (
+          <div className="px-6 py-8 text-sm text-gray-500 dark:text-gray-400">No active peers reported by `wg show`.</div>
+        ) : (
+          <div className="overflow-auto">
+            <table className="w-full min-w-[760px] text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-900/60 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <tr>
+                  <th className="text-left px-4 py-2.5">Peer</th>
+                  <th className="text-left px-4 py-2.5">Endpoint</th>
+                  <th className="text-left px-4 py-2.5">Latest Handshake</th>
+                  <th className="text-left px-4 py-2.5">RX</th>
+                  <th className="text-left px-4 py-2.5">TX</th>
+                </tr>
+              </thead>
+              <tbody>
+                {peers.map((peer) => (
+                  <tr key={peer.PublicKey} className="border-t border-gray-100 dark:border-gray-800">
+                    <td className="px-4 py-2.5">
+                      <div className="font-medium text-gray-900 dark:text-gray-100">{peer.client_name || 'Unknown peer'}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">{peer.PublicKey.slice(0, 24)}...</div>
+                    </td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-gray-700 dark:text-gray-300">{peer.Endpoint || '—'}</td>
+                    <td className="px-4 py-2.5 text-gray-600 dark:text-gray-300">{formatHandshake(peer.LatestHandshake)}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-gray-700 dark:text-gray-300">{formatBytes(peer.TransferRx || 0)}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-gray-700 dark:text-gray-300">{formatBytes(peer.TransferTx || 0)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
           <ScrollText className="w-4 h-4" />
           <span className="font-medium">Live Log Stream</span>
           <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">
@@ -151,7 +227,38 @@ export function LogsPage() {
             </div>
           </div>
         )}
+
+        {data?.warnings && data.warnings.length > 0 && (
+          <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800 text-xs text-amber-700 dark:text-amber-300 bg-amber-50/60 dark:bg-amber-900/10">
+            {data.warnings.join(' | ')}
+          </div>
+        )}
       </div>
     </div>
   )
+}
+
+function formatBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let size = value
+  let unit = 0
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024
+    unit++
+  }
+  return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`
+}
+
+function formatHandshake(value: string) {
+  if (!value) return 'Never'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Unknown'
+  if (date.getUTCFullYear() < 2000) return 'Never'
+
+  const diffSeconds = Math.floor((Date.now() - date.getTime()) / 1000)
+  if (diffSeconds < 60) return `${diffSeconds}s ago`
+  if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)}m ago`
+  if (diffSeconds < 86400) return `${Math.floor(diffSeconds / 3600)}h ago`
+  return `${Math.floor(diffSeconds / 86400)}d ago`
 }

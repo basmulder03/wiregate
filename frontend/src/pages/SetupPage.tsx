@@ -191,6 +191,8 @@ function StepServerConfig({ onDone }: { onDone: () => void }) {
       listen_port: String(setupDefaults.listen_port || current.listen_port),
       dns: setupDefaults.dns || current.dns,
       endpoint: setupDefaults.endpoint || current.endpoint,
+      post_up: setupDefaults.post_up || current.post_up,
+      post_down: setupDefaults.post_down || current.post_down,
     }))
     setDefaultsApplied(true)
   }, [defaultsApplied, setupDefaults])
@@ -408,6 +410,12 @@ function StepServerConfig({ onDone }: { onDone: () => void }) {
             Suggested ({setupDefaults.mode}): <code>{setupDefaults.endpoint}</code>
             {setupDefaults.detected_ipv4_ips.length > 0
               ? ` • detected IPs: ${setupDefaults.detected_ipv4_ips.join(', ')}`
+              : ''}
+            {setupDefaults.default_source_ip
+              ? ` • default route source: ${setupDefaults.default_source_ip}`
+              : ''}
+            {setupDefaults.egress_interface
+              ? ` • NAT interface: ${setupDefaults.egress_interface}`
               : ''}
           </p>
         )}
