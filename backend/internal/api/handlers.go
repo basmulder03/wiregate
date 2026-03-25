@@ -715,21 +715,88 @@ func (h *Handler) GetSetupStatus(c *gin.Context) {
 // GET /api/audit
 func (h *Handler) GetAuditLogs(c *gin.Context) {
 	var logs []models.AuditLog
-	query := h.db.Order("created_at desc")
+	query := h.db.Model(&models.AuditLog{})
 
-	limit := 100
-	if lStr := c.Query("limit"); lStr != "" {
-		if parsed, err := strconv.Atoi(lStr); err == nil && parsed > 0 {
-			limit = parsed
-			if limit > 500 {
-				limit = 500
-			}
+	page := 1
+	if pStr := c.Query("page"); pStr != "" {
+		if parsed, err := strconv.Atoi(pStr); err == nil && parsed > 0 {
+			page = parsed
 		}
 	}
-	query = query.Limit(limit)
 
+	pageSize := 100
+	if psStr := c.Query("page_size"); psStr != "" {
+		if parsed, err := strconv.Atoi(psStr); err == nil && parsed > 0 {
+			pageSize = parsed
+		}
+	} else if lStr := c.Query("limit"); lStr != "" {
+		if parsed, err := strconv.Atoi(lStr); err == nil && parsed > 0 {
+			pageSize = parsed
+		}
+	}
+	if pageSize > 500 {
+		pageSize = 500
+	}
+
+	if q := strings.TrimSpace(c.Query("q")); q != "" {
+		like := "%" + q + "%"
+		query = query.Where(
+			"username LIKE ? OR action LIKE ? OR resource LIKE ? OR details LIKE ? OR ip_address LIKE ?",
+			like, like, like, like, like,
+		)
+	}
+
+	if action := strings.TrimSpace(c.Query("action")); action != "" {
+		query = query.Where("action = ?", action)
+	}
+
+	if username := strings.TrimSpace(c.Query("username")); username != "" {
+		query = query.Where("username = ?", username)
+	}
+
+	if status := strings.TrimSpace(c.Query("status")); status != "" {
+		switch status {
+		case "success":
+			query = query.Where("success = ?", true)
+		case "failed":
+			query = query.Where("success = ?", false)
+		}
+	}
+
+	sortField := c.DefaultQuery("sort", "created_at")
+	allowedSorts := map[string]string{
+		"created_at": "created_at",
+		"username":   "username",
+		"action":     "action",
+		"resource":   "resource",
+		"ip_address": "ip_address",
+		"success":    "success",
+	}
+	column, ok := allowedSorts[sortField]
+	if !ok {
+		column = "created_at"
+		sortField = "created_at"
+	}
+
+	sortOrder := strings.ToLower(c.DefaultQuery("order", "desc"))
+	if sortOrder != "asc" {
+		sortOrder = "desc"
+	}
+
+	var total int64
+	query.Count(&total)
+
+	query = query.Order(column + " " + sortOrder).Offset((page - 1) * pageSize).Limit(pageSize)
 	query.Find(&logs)
-	c.JSON(http.StatusOK, logs)
+
+	c.JSON(http.StatusOK, gin.H{
+		"items":     logs,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+		"sort":      sortField,
+		"order":     sortOrder,
+	})
 }
 
 // --- System Settings Handlers ---

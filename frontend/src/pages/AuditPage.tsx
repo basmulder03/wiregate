@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { auditApi } from '@/api'
 import { Badge, cn } from '@/lib/utils'
-import type { AuditLog } from '@/types'
 import {
   ArrowDown,
   ArrowUp,
@@ -25,15 +24,6 @@ const PAGE_SIZES = [10, 25, 50, 100]
 
 function formatTimestamp(value: string) {
   return new Date(value).toLocaleString()
-}
-
-function compareValues(a: AuditLog, b: AuditLog, field: SortField) {
-  if (field === 'success') return Number(a.success) - Number(b.success)
-  if (field === 'created_at') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-
-  const left = String(a[field] || '').toLowerCase()
-  const right = String(b[field] || '').toLowerCase()
-  return left.localeCompare(right)
 }
 
 function StatCard({
@@ -65,63 +55,38 @@ function StatCard({
 }
 
 export function AuditPage() {
+  const [searchInput, setSearchInput] = useState('')
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
-  const [actionFilter, setActionFilter] = useState('all')
-  const [userFilter, setUserFilter] = useState('all')
+  const [actionFilter, setActionFilter] = useState('')
+  const [userFilter, setUserFilter] = useState('')
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
 
-  const { data: logs, isLoading } = useQuery({
-    queryKey: ['audit'],
-    queryFn: () => auditApi.list(500).then((r) => r.data),
+  const params = useMemo(() => ({
+    q: query || undefined,
+    status: statusFilter === 'all' ? undefined : statusFilter,
+    action: actionFilter.trim() || undefined,
+    username: userFilter.trim() || undefined,
+    sort: sortField,
+    order: sortDirection,
+    page,
+    page_size: pageSize,
+  }), [actionFilter, page, pageSize, query, sortDirection, sortField, statusFilter, userFilter])
+
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['audit', params],
+    queryFn: () => auditApi.list(params).then((r) => r.data),
     refetchInterval: 30000,
   })
 
-  const actionOptions = useMemo(() => {
-    const values = new Set((logs ?? []).map((log) => log.action).filter(Boolean))
-    return ['all', ...Array.from(values).sort()]
-  }, [logs])
-
-  const userOptions = useMemo(() => {
-    const values = new Set((logs ?? []).map((log) => log.username || '—'))
-    return ['all', ...Array.from(values).sort()]
-  }, [logs])
-
-  const filteredLogs = useMemo(() => {
-    const q = query.trim().toLowerCase()
-
-    return [...(logs ?? [])]
-      .filter((log) => {
-        if (statusFilter === 'success' && !log.success) return false
-        if (statusFilter === 'failed' && log.success) return false
-        if (actionFilter !== 'all' && log.action !== actionFilter) return false
-        if (userFilter !== 'all' && (log.username || '—') !== userFilter) return false
-        if (!q) return true
-
-        return [
-          log.username,
-          log.action,
-          log.resource,
-          log.details,
-          log.ip_address,
-          log.success ? 'success' : 'failed',
-        ].some((value) => String(value || '').toLowerCase().includes(q))
-      })
-      .sort((a, b) => {
-        const result = compareValues(a, b, sortField)
-        return sortDirection === 'asc' ? result : -result
-      })
-  }, [actionFilter, logs, query, sortDirection, sortField, statusFilter, userFilter])
-
-  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize))
-  const safePage = Math.min(page, totalPages)
-  const pagedLogs = filteredLogs.slice((safePage - 1) * pageSize, safePage * pageSize)
-
-  const successCount = filteredLogs.filter((log) => log.success).length
-  const failedCount = filteredLogs.length - successCount
+  const logs = data?.items ?? []
+  const total = data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const successCount = logs.filter((log) => log.success).length
+  const failedCount = logs.length - successCount
 
   const updateSort = (field: SortField) => {
     setPage(1)
@@ -134,10 +99,11 @@ export function AuditPage() {
   }
 
   const resetFilters = () => {
+    setSearchInput('')
     setQuery('')
     setStatusFilter('all')
-    setActionFilter('all')
-    setUserFilter('all')
+    setActionFilter('')
+    setUserFilter('')
     setSortField('created_at')
     setSortDirection('desc')
     setPage(1)
@@ -158,7 +124,7 @@ export function AuditPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Visible Events" value={filteredLogs.length} icon={ClipboardList} tone="neutral" />
+        <StatCard label="Visible Page" value={logs.length} icon={ClipboardList} tone="neutral" />
         <StatCard label="Successful" value={successCount} icon={CheckCircle2} tone="success" />
         <StatCard label="Failed" value={failedCount} icon={ShieldAlert} tone="danger" />
       </div>
@@ -167,22 +133,30 @@ export function AuditPage() {
         <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
           <ClipboardList className="w-4 h-4 text-gray-500 dark:text-gray-400" />
           <span className="font-medium text-gray-900 dark:text-gray-100">Audit Explorer</span>
-          {logs && (
-            <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">Showing latest {logs.length} fetched events</span>
-          )}
+          <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
+            {total} matching events
+            {isFetching && !isLoading ? ' • refreshing' : ''}
+          </span>
         </div>
 
         <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 space-y-4 bg-gray-50/60 dark:bg-gray-950/40">
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr),repeat(3,minmax(0,1fr)),auto] gap-3">
-            <label className="relative block">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                setPage(1)
+                setQuery(searchInput.trim())
+              }}
+              className="relative block"
+            >
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
-                value={query}
-                onChange={(e) => { setQuery(e.target.value); setPage(1) }}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search user, action, resource, details, or IP"
                 className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-            </label>
+            </form>
 
             <select
               value={statusFilter}
@@ -194,25 +168,19 @@ export function AuditPage() {
               <option value="failed">Failed</option>
             </select>
 
-            <select
+            <input
               value={actionFilter}
               onChange={(e) => { setActionFilter(e.target.value); setPage(1) }}
+              placeholder="Filter by action"
               className="px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {actionOptions.map((action) => (
-                <option key={action} value={action}>{action === 'all' ? 'All actions' : action}</option>
-              ))}
-            </select>
+            />
 
-            <select
+            <input
               value={userFilter}
               onChange={(e) => { setUserFilter(e.target.value); setPage(1) }}
+              placeholder="Filter by user"
               className="px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {userOptions.map((user) => (
-                <option key={user} value={user}>{user === 'all' ? 'All users' : user}</option>
-              ))}
-            </select>
+            />
 
             <button
               onClick={resetFilters}
@@ -227,7 +195,7 @@ export function AuditPage() {
             <Filter className="w-3.5 h-3.5" />
             <span>Sorted by {sortField.replace('_', ' ')} ({sortDirection})</span>
             <span className="text-gray-300 dark:text-gray-600">•</span>
-            <span>Page {safePage} of {totalPages}</span>
+            <span>Page {page} of {totalPages}</span>
           </div>
         </div>
 
@@ -235,14 +203,9 @@ export function AuditPage() {
           <div className="flex items-center justify-center py-16">
             <Loader2 className="w-6 h-6 animate-spin text-gray-400 dark:text-gray-500" />
           </div>
-        ) : !logs || logs.length === 0 ? (
+        ) : total === 0 ? (
           <div className="text-center py-16">
             <ClipboardList className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-            <p className="text-gray-500 dark:text-gray-400">No audit events yet</p>
-          </div>
-        ) : filteredLogs.length === 0 ? (
-          <div className="text-center py-16">
-            <Search className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
             <p className="text-gray-500 dark:text-gray-400 font-medium">No matching audit events</p>
             <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Try broadening the search or clearing some filters.</p>
           </div>
@@ -274,7 +237,7 @@ export function AuditPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                  {pagedLogs.map((log) => (
+                  {logs.map((log) => (
                     <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 align-top">
                       <td className="px-5 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{formatTimestamp(log.created_at)}</td>
                       <td className="px-5 py-3 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">
@@ -303,7 +266,7 @@ export function AuditPage() {
             <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
                 <span>
-                  Showing {(safePage - 1) * pageSize + 1}-{Math.min(safePage * pageSize, filteredLogs.length)} of {filteredLogs.length}
+                  Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, total)} of {total}
                 </span>
                 <select
                   value={pageSize}
@@ -322,17 +285,17 @@ export function AuditPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
-                  disabled={safePage === 1}
+                  disabled={page === 1}
                   className="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Previous
                 </button>
                 <div className="px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400">
-                  {safePage} / {totalPages}
+                  {page} / {totalPages}
                 </div>
                 <button
                   onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-                  disabled={safePage === totalPages}
+                  disabled={page === totalPages}
                   className="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Next

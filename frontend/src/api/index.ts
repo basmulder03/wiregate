@@ -6,7 +6,7 @@ import type {
   Client,
   ConnectedPeer,
   APIKey,
-  AuditLog,
+  AuditLogListResponse,
   ServerStatus,
   SetupStatus,
   OIDCProvider,
@@ -123,7 +123,17 @@ export const connectionsApi = {
 
 // Audit
 export const auditApi = {
-  list: (limit?: number) => api.get<AuditLog[]>('/audit', { params: limit ? { limit } : undefined }),
+  list: (params?: {
+    q?: string
+    status?: 'success' | 'failed'
+    action?: string
+    username?: string
+    sort?: 'created_at' | 'username' | 'action' | 'resource' | 'ip_address' | 'success'
+    order?: 'asc' | 'desc'
+    page?: number
+    page_size?: number
+    limit?: number
+  }) => api.get<AuditLogListResponse>('/audit', { params }),
 }
 
 // Settings

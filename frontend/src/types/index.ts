@@ -70,6 +70,15 @@ export interface AuditLog {
   created_at: string
 }
 
+export interface AuditLogListResponse {
+  items: AuditLog[]
+  total: number
+  page: number
+  page_size: number
+  sort: string
+  order: 'asc' | 'desc'
+}
+
 export interface ServerStatus {
   installed: boolean
   running: boolean
@@ -138,4 +147,3 @@ export interface WSNotification {
   install_url?: string
   install_method?: InstallMethod
 }
-

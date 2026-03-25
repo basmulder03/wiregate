@@ -40,22 +40,27 @@ function ThemeToggle() {
   ]
 
   return (
-    <div className="flex items-center gap-0.5 bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
-      {options.map(({ value, icon: Icon, label }) => (
-        <button
-          key={value}
-          onClick={() => setTheme(value)}
-          title={label}
-          className={cn(
-            'p-1.5 rounded-md transition-colors',
-            theme === value
-              ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-              : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
-          )}
-        >
-          <Icon className="w-3.5 h-3.5" />
-        </button>
-      ))}
+    <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60 p-1">
+      <span className="px-2 text-[11px] font-medium uppercase tracking-[0.12em] text-gray-400 dark:text-gray-500">
+        Theme
+      </span>
+      <div className="mt-1 grid grid-cols-3 gap-1">
+        {options.map(({ value, icon: Icon, label }) => (
+          <button
+            key={value}
+            onClick={() => setTheme(value)}
+            title={label}
+            className={cn(
+              'flex items-center justify-center rounded-lg px-0 py-2 text-xs font-medium transition-colors',
+              theme === value
+                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                : 'text-gray-500 dark:text-gray-400 hover:bg-white/70 dark:hover:bg-gray-700/70 hover:text-gray-700 dark:hover:text-gray-200'
+            )}
+          >
+            <Icon className="w-3.5 h-3.5" />
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
