@@ -12,6 +12,7 @@ import (
 
 	"github.com/basmulder03/wiregate/internal/auth"
 	"github.com/basmulder03/wiregate/internal/models"
+	"github.com/basmulder03/wiregate/internal/update"
 	"github.com/basmulder03/wiregate/internal/wireguard"
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gin-gonic/gin"
@@ -22,20 +23,37 @@ import (
 
 // Handler holds all dependencies for API handlers
 type Handler struct {
-	db      *gorm.DB
-	authSvc *auth.Service
-	wgMgr   *wireguard.Manager
-	hub     *Hub
+	db            *gorm.DB
+	authSvc       *auth.Service
+	wgMgr         *wireguard.Manager
+	hub           *Hub
+	version       string
+	commit        string
+	date          string
+	installMethod update.InstallMethod
 }
 
 // NewHandler creates a new API handler
 func NewHandler(db *gorm.DB, authSvc *auth.Service, wgMgr *wireguard.Manager, hub *Hub) *Handler {
 	return &Handler{
-		db:      db,
-		authSvc: authSvc,
-		wgMgr:   wgMgr,
-		hub:     hub,
+		db:            db,
+		authSvc:       authSvc,
+		wgMgr:         wgMgr,
+		hub:           hub,
+		installMethod: update.DetectInstallMethod(),
 	}
+}
+
+// SetVersionInfo stores the build-time version metadata in the handler.
+func (h *Handler) SetVersionInfo(version, commit, date string) {
+	h.version = version
+	h.commit = commit
+	h.date = date
+}
+
+// InstallMethod returns the detected installation method.
+func (h *Handler) InstallMethod() update.InstallMethod {
+	return h.installMethod
 }
 
 // --- Auth Handlers ---
@@ -323,6 +341,7 @@ func (h *Handler) ServerStart(c *gin.Context) {
 		return
 	}
 	h.writeAudit(c, ctxUserID(c), ctxUsername(c), "server_start", "wireguard", "WireGuard started", true)
+	h.hub.BroadcastNotification("server_started", "success", "Server started", "WireGuard interface is now running")
 	c.JSON(http.StatusOK, gin.H{"message": "WireGuard started"})
 }
 
@@ -335,6 +354,7 @@ func (h *Handler) ServerStop(c *gin.Context) {
 		return
 	}
 	h.writeAudit(c, ctxUserID(c), ctxUsername(c), "server_stop", "wireguard", "WireGuard stopped", true)
+	h.hub.BroadcastNotification("server_stopped", "warning", "Server stopped", "WireGuard interface has been stopped")
 	c.JSON(http.StatusOK, gin.H{"message": "WireGuard stopped"})
 }
 
@@ -347,6 +367,7 @@ func (h *Handler) ServerRestart(c *gin.Context) {
 		return
 	}
 	h.writeAudit(c, ctxUserID(c), ctxUsername(c), "server_restart", "wireguard", "WireGuard restarted", true)
+	h.hub.BroadcastNotification("server_restarted", "info", "Server restarted", "WireGuard interface has been restarted")
 	c.JSON(http.StatusOK, gin.H{"message": "WireGuard restarted"})
 }
 
@@ -452,6 +473,9 @@ func (h *Handler) CreateClient(c *gin.Context) {
 
 	h.writeAudit(c, ctxUserID(c), ctxUsername(c), "create_client", "client:"+client.Name, "client created", true)
 
+	h.hub.BroadcastNotification("client_created", "success",
+		"Client created", "New client \""+client.Name+"\" was added by "+ctxUsername(c))
+
 	h.applyServerConfig(&server)
 	c.JSON(http.StatusCreated, client)
 }
@@ -517,6 +541,9 @@ func (h *Handler) DeleteClient(c *gin.Context) {
 	}
 
 	h.writeAudit(c, ctxUserID(c), ctxUsername(c), "delete_client", "client:"+client.Name, "client deleted", true)
+
+	h.hub.BroadcastNotification("client_deleted", "warning",
+		"Client deleted", "Client \""+client.Name+"\" was removed by "+ctxUsername(c))
 
 	var server models.WireGuardServer
 	if h.db.First(&server).Error == nil {
@@ -1056,9 +1083,123 @@ func (h *Handler) enforceExpiry() {
 		// Mark disabled so we don't keep trying
 		h.db.Model(&client).Update("enabled", false)
 		log.Printf("expiry enforcer: disabled expired client %q (id=%d)", client.Name, client.ID)
+		h.hub.BroadcastNotification("client_expired", "warning",
+			"Client expired", "Client \""+client.Name+"\" has been disabled due to expiry")
 	}
 
 	h.applyServerConfig(&server)
+}
+
+// --- Version & Update Handlers ---
+
+// GetVersion returns the running version, build info, install method, and latest release info.
+// GET /api/version
+func (h *Handler) GetVersion(c *gin.Context) {
+	info := gin.H{
+		"version":        h.version,
+		"commit":         h.commit,
+		"date":           h.date,
+		"install_method": string(h.installMethod),
+	}
+
+	// Check for latest release (non-blocking with short timeout)
+	release, err := update.FetchLatestRelease()
+	if err == nil {
+		info["latest_tag"] = release.TagName
+		info["latest_url"] = release.HTMLURL
+		info["update_available"] = update.IsNewer(h.version, release.TagName)
+	}
+
+	c.JSON(http.StatusOK, info)
+}
+
+// GetUpdateSettings returns the auto-update configuration.
+// GET /api/settings/updates
+func (h *Handler) GetUpdateSettings(c *gin.Context) {
+	enabled := h.getSetting("auto_update_enabled", "false")
+	window := h.getSetting("auto_update_window", "02:00-04:00")
+	c.JSON(http.StatusOK, gin.H{
+		"auto_update_enabled": enabled == "true",
+		"auto_update_window":  window,
+	})
+}
+
+// SetUpdateSettings saves the auto-update configuration.
+// PUT /api/settings/updates
+func (h *Handler) SetUpdateSettings(c *gin.Context) {
+	var req struct {
+		AutoUpdateEnabled bool   `json:"auto_update_enabled"`
+		AutoUpdateWindow  string `json:"auto_update_window"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	enabledStr := "false"
+	if req.AutoUpdateEnabled {
+		enabledStr = "true"
+	}
+	h.setSetting("auto_update_enabled", enabledStr)
+
+	window := req.AutoUpdateWindow
+	if window == "" {
+		window = "02:00-04:00"
+	}
+	h.setSetting("auto_update_window", window)
+
+	c.JSON(http.StatusOK, gin.H{
+		"auto_update_enabled": req.AutoUpdateEnabled,
+		"auto_update_window":  window,
+	})
+}
+
+// TriggerUpdate downloads and installs the latest release, then restarts.
+// POST /api/system/update
+func (h *Handler) TriggerUpdate(c *gin.Context) {
+	release, err := update.FetchLatestRelease()
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "could not fetch release info: " + err.Error()})
+		return
+	}
+	if !update.IsNewer(h.version, release.TagName) {
+		c.JSON(http.StatusOK, gin.H{"message": "already up to date", "version": h.version})
+		return
+	}
+
+	// Return 200 immediately; the actual replacement happens async
+	c.JSON(http.StatusOK, gin.H{
+		"message":        "update initiated; server will restart shortly",
+		"target":         release.TagName,
+		"install_method": string(h.installMethod),
+	})
+
+	go func() {
+		if err := update.PerformUpdate(release.TagName, h.installMethod); err != nil {
+			log.Printf("manual update failed: %v", err)
+			h.hub.BroadcastNotification("update_failed", "error",
+				"Update failed", err.Error())
+		}
+	}()
+}
+
+// --- Update Settings helpers ---
+
+func (h *Handler) getSetting(key, defaultVal string) string {
+	var s models.SystemSettings
+	if h.db.Where("key = ?", key).First(&s).Error != nil {
+		return defaultVal
+	}
+	return s.Value
+}
+
+func (h *Handler) setSetting(key, value string) {
+	var s models.SystemSettings
+	if h.db.Where("key = ?", key).First(&s).Error != nil {
+		h.db.Create(&models.SystemSettings{Key: key, Value: value})
+	} else {
+		h.db.Model(&s).Update("value", value)
+	}
 }
 
 func splitCIDR(cidr string) []string {

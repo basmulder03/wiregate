@@ -70,7 +70,11 @@ func main() {
 
 	// Background expiry enforcer
 	handler := api.NewHandler(gormDB, authSvc, wgMgr, hub)
+	handler.SetVersionInfo(version, commit, date)
 	handler.StartExpiryEnforcer()
+
+	// Update checker (polls GitHub every 6 h; broadcasts WS notifications)
+	hub.StartUpdateChecker(gormDB, version, handler.InstallMethod())
 
 	// Frontend assets: prefer disk staticDir (set by env/config or Docker), fall back to embedded.
 	embeddedFS := static.FS()

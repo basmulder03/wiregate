@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { serverApi, authApi, settingsApi } from '@/api'
+import { serverApi, authApi, settingsApi, versionApi } from '@/api'
 import { useAuth } from '@/context/AuthContext'
-import { Key, Shield, Server, Loader2, Plus, Trash2, Eye, EyeOff, Copy, Check, ShieldCheck, ShieldOff } from 'lucide-react'
-import type { APIKey } from '@/types'
+import { Key, Shield, Server, Loader2, Plus, Trash2, Eye, EyeOff, Copy, Check, ShieldCheck, ShieldOff, RefreshCw, Download, GitBranch } from 'lucide-react'
+import { useToast } from '@/context/ToastContext'
+import type { APIKey, UpdateSettings } from '@/types'
 
 // TOTP setup/disable states
 type TOTPView = 'idle' | 'setup' | 'confirm' | 'disable'
@@ -490,13 +491,203 @@ function APIKeys() {
   )
 }
 
+function UpdatesSettings() {
+  const queryClient = useQueryClient()
+  const { addToast } = useToast()
+
+  const { data: versionInfo, isLoading: versionLoading } = useQuery({
+    queryKey: ['version'],
+    queryFn: () => versionApi.get().then((r) => r.data),
+  })
+
+  const { data: updateSettings, isLoading: settingsLoading } = useQuery({
+    queryKey: ['update-settings'],
+    queryFn: () => settingsApi.getUpdateSettings().then((r) => r.data),
+  })
+
+  const [form, setForm] = useState<UpdateSettings>({
+    auto_update_enabled: false,
+    auto_update_window: '02:00-04:00',
+  })
+  const [formInitialized, setFormInitialized] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  if (updateSettings && !formInitialized) {
+    setForm(updateSettings)
+    setFormInitialized(true)
+  }
+
+  const saveMutation = useMutation({
+    mutationFn: () => settingsApi.setUpdateSettings(form),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['update-settings'] })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    },
+    onError: () => addToast({ kind: 'error', title: 'Save failed', message: 'Could not save update settings.' }),
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: () => versionApi.triggerUpdate(),
+    onSuccess: () => addToast({ kind: 'info', title: 'Update initiated', message: 'Server will restart shortly with the new version.' }),
+    onError: () => addToast({ kind: 'error', title: 'Update failed', message: 'Could not initiate the update. Check server logs.' }),
+  })
+
+  const isLoading = versionLoading || settingsLoading
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-gray-400 dark:text-gray-500" /></div>
+  }
+
+  const isDocker = versionInfo?.install_method === 'docker'
+
+  return (
+    <div className="space-y-6 max-w-lg">
+      {/* Current version info */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Version Information</h3>
+        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-700">
+          <div className="flex items-center justify-between px-4 py-2.5">
+            <span className="text-sm text-gray-600 dark:text-gray-400">Version</span>
+            <span className="text-sm font-mono font-medium text-gray-900 dark:text-gray-100">
+              {versionInfo?.version ?? '—'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between px-4 py-2.5">
+            <span className="text-sm text-gray-600 dark:text-gray-400">Commit</span>
+            <span className="text-sm font-mono text-gray-500 dark:text-gray-400">
+              {versionInfo?.commit ? versionInfo.commit.slice(0, 8) : '—'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between px-4 py-2.5">
+            <span className="text-sm text-gray-600 dark:text-gray-400">Build date</span>
+            <span className="text-sm font-mono text-gray-500 dark:text-gray-400">
+              {versionInfo?.date ?? '—'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between px-4 py-2.5">
+            <span className="text-sm text-gray-600 dark:text-gray-400">Install method</span>
+            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
+              isDocker
+                ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+            }`}>
+              {versionInfo?.install_method ?? '—'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Update status */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Updates</h3>
+          <button
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['version'] })}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Check now
+          </button>
+        </div>
+
+        {versionInfo?.update_available ? (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <GitBranch className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                Update available: {versionInfo.latest_tag}
+              </span>
+            </div>
+            {isDocker ? (
+              <p className="text-sm text-amber-700 dark:text-amber-400">
+                Pull the latest Docker image to update:{' '}
+                <code className="text-xs bg-amber-100 dark:bg-amber-900/40 px-1 py-0.5 rounded font-mono">docker pull ghcr.io/basmulder03/wiregate:latest</code>
+              </p>
+            ) : (
+              <button
+                onClick={() => updateMutation.mutate()}
+                disabled={updateMutation.isPending}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors"
+              >
+                {updateMutation.isPending
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <Download className="w-3.5 h-3.5" />}
+                Update now
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
+            <Check className="w-4 h-4" />
+            Up to date
+          </div>
+        )}
+      </div>
+
+      {/* Auto-update settings — hidden for Docker */}
+      {!isDocker && (
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Automatic Updates</h3>
+
+          <label className="flex items-center gap-3 cursor-pointer">
+            <div className="relative">
+              <input
+                type="checkbox"
+                className="sr-only"
+                checked={form.auto_update_enabled}
+                onChange={(e) => setForm(f => ({ ...f, auto_update_enabled: e.target.checked }))}
+              />
+              <div className={`w-10 h-6 rounded-full transition-colors ${form.auto_update_enabled ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'}`} />
+              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.auto_update_enabled ? 'translate-x-5' : 'translate-x-1'}`} />
+            </div>
+            <span className="text-sm text-gray-700 dark:text-gray-300">Enable automatic updates</span>
+          </label>
+
+          {form.auto_update_enabled && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Update window{' '}
+                <span className="text-gray-400 dark:text-gray-500 font-normal">(HH:MM-HH:MM, 24h local time)</span>
+              </label>
+              <input
+                type="text"
+                value={form.auto_update_window}
+                onChange={(e) => setForm(f => ({ ...f, auto_update_window: e.target.value }))}
+                placeholder="02:00-04:00"
+                className="w-48 px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Automatic updates will only apply within this time window.
+              </p>
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <button
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {saveMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              {saved ? <Check className="w-3.5 h-3.5" /> : null}
+              {saved ? 'Saved!' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function SettingsPage() {
-  const [tab, setTab] = useState<'server' | 'apikeys' | 'security'>('server')
+  const [tab, setTab] = useState<'server' | 'apikeys' | 'security' | 'updates'>('server')
 
   const tabs = [
     { id: 'server', label: 'Server Config', icon: Server },
     { id: 'apikeys', label: 'API Keys', icon: Key },
     { id: 'security', label: 'Security', icon: Shield },
+    { id: 'updates', label: 'Updates', icon: Download },
   ] as const
 
   return (
@@ -531,6 +722,7 @@ export function SettingsPage() {
           {tab === 'server' && <ServerSettings />}
           {tab === 'apikeys' && <APIKeys />}
           {tab === 'security' && <SecuritySettings />}
+          {tab === 'updates' && <UpdatesSettings />}
         </div>
       </div>
     </div>

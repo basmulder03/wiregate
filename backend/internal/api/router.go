@@ -42,6 +42,8 @@ func SetupRouter(handler *Handler, authSvc *auth.Service, allowedOrigins []strin
 		public.GET("/auth/oidc/providers", handler.ListOIDCProviders)
 		public.GET("/auth/oidc/:provider/login", handler.OIDCLoginURL)
 		public.GET("/auth/oidc/:provider/callback", handler.OIDCCallback)
+		// Version info (public so the UI can display it on login page too)
+		public.GET("/version", handler.GetVersion)
 	}
 
 	// WebSocket (auth validated inside for ws compatibility)
@@ -105,6 +107,15 @@ func SetupRouter(handler *Handler, authSvc *auth.Service, allowedOrigins []strin
 			settings.PUT("/endpoint", handler.SetPublicEndpoint)
 			settings.GET("/oidc", handler.GetOIDCConfig)
 			settings.POST("/oidc", handler.UpsertOIDCConfig)
+			settings.GET("/updates", handler.GetUpdateSettings)
+			settings.PUT("/updates", handler.SetUpdateSettings)
+		}
+
+		// System actions (admin only)
+		system := protected.Group("/system")
+		system.Use(middleware.RequireAdmin())
+		{
+			system.POST("/update", handler.TriggerUpdate)
 		}
 	}
 

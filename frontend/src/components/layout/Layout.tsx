@@ -15,6 +15,9 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/context/ThemeContext'
+import { useToast } from '@/context/ToastContext'
+import { useWebSocket } from '@/hooks/useWebSocket'
+import type { WSNotification } from '@/types'
 import { cn } from '@/lib/utils'
 
 const navItems = [
@@ -58,6 +61,22 @@ function ThemeToggle() {
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const { addToast } = useToast()
+
+  // Global WebSocket → toast bridge
+  useWebSocket({
+    onMessage: (data) => {
+      if (data.type !== 'notification') return
+      const n = data as unknown as WSNotification
+      addToast({
+        kind: n.kind,
+        title: n.title,
+        message: n.message,
+        // Update-available toasts stay until dismissed manually
+        duration: n.event === 'update_available' ? 0 : 5000,
+      })
+    },
+  })
 
   const handleLogout = () => {
     logout()

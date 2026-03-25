@@ -94,3 +94,35 @@ export interface OIDCProvider {
   id: number
   provider_name: string
 }
+
+export type InstallMethod = 'systemd' | 'launchd' | 'docker' | 'manual'
+
+export interface VersionInfo {
+  version: string
+  commit: string
+  date: string
+  install_method: InstallMethod
+  latest_tag?: string
+  latest_url?: string
+  update_available?: boolean
+}
+
+export interface UpdateSettings {
+  auto_update_enabled: boolean
+  auto_update_window: string
+}
+
+/** WebSocket notification message pushed from the server. */
+export interface WSNotification {
+  type: 'notification'
+  event: string
+  kind: 'success' | 'error' | 'warning' | 'info'
+  title: string
+  message: string
+  timestamp: number
+  /** Only present on update_available events */
+  latest_tag?: string
+  install_url?: string
+  install_method?: InstallMethod
+}
+

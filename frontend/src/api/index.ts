@@ -10,6 +10,8 @@ import type {
   ServerStatus,
   SetupStatus,
   OIDCProvider,
+  VersionInfo,
+  UpdateSettings,
 } from '@/types'
 
 // Auth
@@ -83,4 +85,13 @@ export const auditApi = {
 export const settingsApi = {
   getEndpoint: () => api.get<{ endpoint: string }>('/settings/endpoint'),
   setEndpoint: (endpoint: string) => api.put<{ endpoint: string }>('/settings/endpoint', { endpoint }),
+  getUpdateSettings: () => api.get<UpdateSettings>('/settings/updates'),
+  setUpdateSettings: (data: UpdateSettings) => api.put<UpdateSettings>('/settings/updates', data),
 }
+
+// Version / updates
+export const versionApi = {
+  get: () => api.get<VersionInfo>('/version'),
+  triggerUpdate: () => api.post<{ message: string; target?: string }>('/system/update'),
+}
+
