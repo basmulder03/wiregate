@@ -27,14 +27,14 @@ function StepIndicator({ current }: { current: number }) {
                     ? 'bg-blue-600 text-white'
                     : active
                     ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-400'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500'
                 }`}
               >
                 {done ? <Check className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
               </div>
               <span
                 className={`text-sm font-medium hidden sm:block ${
-                  active ? 'text-gray-900' : done ? 'text-gray-600' : 'text-gray-400'
+                  active ? 'text-gray-900 dark:text-white' : done ? 'text-gray-600 dark:text-gray-400' : 'text-gray-400 dark:text-gray-600'
                 }`}
               >
                 {step.label}
@@ -42,7 +42,7 @@ function StepIndicator({ current }: { current: number }) {
             </div>
             {i < STEPS.length - 1 && (
               <div
-                className={`w-10 h-px mx-3 ${done ? 'bg-blue-600' : 'bg-gray-200'}`}
+                className={`w-10 h-px mx-3 ${done ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'}`}
               />
             )}
           </div>
@@ -84,12 +84,12 @@ function StepAdminAccount({ onDone }: { onDone: () => void }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
         <input
           type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           placeholder="admin"
           minLength={3}
           required
@@ -97,31 +97,31 @@ function StepAdminAccount({ onDone }: { onDone: () => void }) {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           placeholder="••••••••"
           minLength={8}
           required
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirm Password</label>
         <input
           type="password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           placeholder="••••••••"
           required
         />
       </div>
 
       {error && (
-        <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
+        <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>
       )}
 
       <button
@@ -206,27 +206,30 @@ function StepServerConfig({ onDone }: { onDone: () => void }) {
     }
   }
 
+  const inputCls = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+  const labelCls = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Interface</label>
+          <label className={labelCls}>Interface</label>
           <input
             type="text"
             value={form.interface}
             onChange={set('interface')}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className={inputCls}
             placeholder="wg0"
             required
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Listen Port</label>
+          <label className={labelCls}>Listen Port</label>
           <input
             type="number"
             value={form.listen_port}
             onChange={set('listen_port')}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className={inputCls}
             placeholder="51820"
             min={1}
             max={65535}
@@ -236,38 +239,38 @@ function StepServerConfig({ onDone }: { onDone: () => void }) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className={labelCls}>
           Server Address <span className="text-gray-400 font-normal">(CIDR)</span>
         </label>
         <input
           type="text"
           value={form.address}
           onChange={set('address')}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className={inputCls}
           placeholder="10.8.0.1/24"
           required
         />
-        <p className="text-xs text-gray-500 mt-1">The VPN subnet — clients will get IPs from this range.</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">The VPN subnet — clients will get IPs from this range.</p>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">DNS</label>
+          <label className={labelCls}>DNS</label>
           <input
             type="text"
             value={form.dns}
             onChange={set('dns')}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className={inputCls}
             placeholder="1.1.1.1"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">MTU</label>
+          <label className={labelCls}>MTU</label>
           <input
             type="number"
             value={form.mtu}
             onChange={set('mtu')}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className={inputCls}
             placeholder="1420"
             min={576}
             max={1500}
@@ -276,50 +279,50 @@ function StepServerConfig({ onDone }: { onDone: () => void }) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className={labelCls}>
           Public Endpoint <span className="text-gray-400 font-normal">(optional)</span>
         </label>
         <input
           type="text"
           value={form.endpoint}
           onChange={set('endpoint')}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className={inputCls}
           placeholder="vpn.example.com:51820"
         />
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           The public address clients use to reach this server. Can be set later in Settings.
         </p>
       </div>
 
       <details className="group">
-        <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700 select-none flex items-center gap-1">
+        <summary className="cursor-pointer text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 select-none flex items-center gap-1">
           <ChevronRight className="w-3.5 h-3.5 transition-transform group-open:rotate-90" />
           Advanced: PostUp / PostDown rules
         </summary>
         <div className="mt-3 space-y-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">PostUp</label>
+            <label className={labelCls}>PostUp</label>
             <textarea
               value={form.post_up}
               onChange={set('post_up')}
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">PostDown</label>
+            <label className={labelCls}>PostDown</label>
             <textarea
               value={form.post_down}
               onChange={set('post_down')}
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             />
           </div>
         </div>
       </details>
 
       {error && (
-        <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
+        <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>
       )}
 
       <button
@@ -340,12 +343,12 @@ function StepDone() {
   const navigate = useNavigate()
   return (
     <div className="text-center space-y-4">
-      <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-green-100 mb-2">
-        <Check className="w-7 h-7 text-green-600" />
+      <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-green-100 dark:bg-green-900/30 mb-2">
+        <Check className="w-7 h-7 text-green-600 dark:text-green-400" />
       </div>
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">WireGate is ready</h2>
-        <p className="text-sm text-gray-500 mt-1">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">WireGate is ready</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           Your admin account and server configuration have been saved. You can now add clients and start the WireGuard interface from the dashboard.
         </p>
       </div>
@@ -375,15 +378,15 @@ export function SetupPage() {
   const meta = STEP_META[step] ?? STEP_META[1]
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-10">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-lg">
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-600 mb-4">
             <Network className="w-6 h-6 text-white" />
           </div>
-          <h1 className="text-2xl font-semibold text-gray-900">Welcome to WireGate</h1>
-          <p className="text-gray-500 text-sm mt-1">Let's get your VPN server set up in a few steps.</p>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Welcome to WireGate</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Let's get your VPN server set up in a few steps.</p>
         </div>
 
         {/* Step indicator (only for steps 1–2) */}
@@ -394,12 +397,12 @@ export function SetupPage() {
         )}
 
         {/* Card */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-6">
           {step < 3 && (
             <div className="mb-5">
-              <h2 className="text-base font-semibold text-gray-900">{meta.title}</h2>
+              <h2 className="text-base font-semibold text-gray-900 dark:text-white">{meta.title}</h2>
               {meta.description && (
-                <p className="text-sm text-gray-500 mt-0.5">{meta.description}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{meta.description}</p>
               )}
             </div>
           )}
@@ -411,10 +414,10 @@ export function SetupPage() {
 
         {/* Skip server config — only on step 2 */}
         {step === 2 && (
-          <p className="text-center text-xs text-gray-400 mt-4">
+          <p className="text-center text-xs text-gray-400 dark:text-gray-600 mt-4">
             <button
               onClick={() => setStep(3)}
-              className="underline hover:text-gray-600 transition-colors"
+              className="underline hover:text-gray-600 dark:hover:text-gray-400 transition-colors"
             >
               Skip for now
             </button>

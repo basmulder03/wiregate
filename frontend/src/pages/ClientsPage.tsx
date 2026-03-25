@@ -45,64 +45,67 @@ function AddClientModal({ onClose, onCreated }: { onClose: () => void; onCreated
     }
   }
 
+  const inputCls = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+  const labelCls = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="font-semibold text-gray-900">Add Client</h2>
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-md">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-800">
+          <h2 className="font-semibold text-gray-900 dark:text-white">Add Client</h2>
         </div>
         <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+            <label className={labelCls}>Name *</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={inputCls}
               placeholder="John's iPhone"
               required
               autoFocus
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <label className={labelCls}>Description</label>
             <input
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={inputCls}
               placeholder="Optional description"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">DNS</label>
+            <label className={labelCls}>DNS</label>
             <input
               type="text"
               value={dns}
               onChange={(e) => setDns(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={inputCls + ' font-mono'}
               placeholder="1.1.1.1"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Expires (optional)</label>
+            <label className={labelCls}>Expires (optional)</label>
             <input
               type="date"
               value={expiresAt}
               onChange={(e) => setExpiresAt(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={inputCls}
             />
-            <p className="text-xs text-gray-400 mt-1">Leave blank for no expiry</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Leave blank for no expiry</p>
           </div>
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
+            <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>
           )}
         </form>
-        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3">
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-800 flex items-center justify-end gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
           >
             Cancel
           </button>
@@ -174,25 +177,25 @@ function ClientConfigModal({ client, onClose }: { client: Client; onClose: () =>
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-lg">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
           <div>
-            <h2 className="font-semibold text-gray-900">{client.name}</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Client configuration</p>
+            <h2 className="font-semibold text-gray-900 dark:text-white">{client.name}</h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Client configuration</p>
           </div>
           {tab === 'config' && (
             <div className="flex items-center gap-2">
               <button
                 onClick={handleCopy}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
                 {copied ? 'Copied!' : 'Copy'}
               </button>
               <button
                 onClick={handleDownload}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
               >
                 <Download className="w-3.5 h-3.5" />
                 Download
@@ -202,13 +205,13 @@ function ClientConfigModal({ client, onClose }: { client: Client; onClose: () =>
         </div>
 
         {/* Tab switcher */}
-        <div className="flex border-b border-gray-200 px-6">
+        <div className="flex border-b border-gray-200 dark:border-gray-800 px-6">
           <button
             onClick={() => handleTabChange('config')}
             className={`py-2.5 px-1 mr-6 text-sm font-medium border-b-2 transition-colors ${
               tab === 'config'
                 ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
             }`}
           >
             Config file
@@ -218,7 +221,7 @@ function ClientConfigModal({ client, onClose }: { client: Client; onClose: () =>
             className={`py-2.5 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
               tab === 'qr'
                 ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
             }`}
           >
             <QrCode className="w-3.5 h-3.5" />
@@ -234,7 +237,7 @@ function ClientConfigModal({ client, onClose }: { client: Client; onClose: () =>
                 <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
               </div>
             ) : (
-              <pre className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-xs font-mono text-gray-800 overflow-x-auto whitespace-pre-wrap">
+              <pre className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-xs font-mono text-gray-800 dark:text-gray-200 overflow-x-auto whitespace-pre-wrap">
                 {data?.config || 'Server endpoint not configured. Set the public endpoint in Settings.'}
               </pre>
             )
@@ -245,25 +248,25 @@ function ClientConfigModal({ client, onClose }: { client: Client; onClose: () =>
                   <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                 </div>
               ) : qrError ? (
-                <p className="text-sm text-red-600 bg-red-50 px-4 py-3 rounded-lg">{qrError}</p>
+                <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-4 py-3 rounded-lg">{qrError}</p>
               ) : qrUrl ? (
                 <>
                   <img
                     src={qrUrl}
                     alt={`QR code for ${client.name}`}
-                    className="w-56 h-56 rounded-lg border border-gray-200"
+                    className="w-56 h-56 rounded-lg border border-gray-200 dark:border-gray-700"
                   />
-                  <p className="text-xs text-gray-400 mt-3">Scan with the WireGuard mobile app</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">Scan with the WireGuard mobile app</p>
                 </>
               ) : null}
             </div>
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-800 flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
           >
             Close
           </button>
@@ -275,7 +278,7 @@ function ClientConfigModal({ client, onClose }: { client: Client; onClose: () =>
 
 function ExpiryBadge({ expiresAt }: { expiresAt: string | null }) {
   if (!expiresAt) {
-    return <span className="text-xs text-gray-400">Never</span>
+    return <span className="text-xs text-gray-400 dark:text-gray-500">Never</span>
   }
   const expiry = new Date(expiresAt)
   const now = new Date()
@@ -284,20 +287,20 @@ function ExpiryBadge({ expiresAt }: { expiresAt: string | null }) {
 
   if (diffMs < 0) {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">
         Expired
       </span>
     )
   }
   if (diffDays <= 7) {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700">
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400">
         {expiry.toLocaleDateString()}
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
+    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
       {expiry.toLocaleDateString()}
     </span>
   )
@@ -334,8 +337,8 @@ export function ClientsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Clients</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Manage WireGuard peers</p>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Clients</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Manage WireGuard peers</p>
         </div>
         <button
           onClick={() => setShowAdd(true)}
@@ -346,43 +349,43 @@ export function ClientsPage() {
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200">
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
           </div>
         ) : !clients || clients.length === 0 ? (
           <div className="text-center py-16">
-            <Users className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500 font-medium">No clients yet</p>
-            <p className="text-sm text-gray-400 mt-1">Add a client to get started</p>
+            <Users className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+            <p className="text-gray-500 dark:text-gray-400 font-medium">No clients yet</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Add a client to get started</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">IP Address</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Public Key</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Expires</th>
-                  <th className="text-right px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <tr className="border-b border-gray-100 dark:border-gray-800">
+                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Client</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">IP Address</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Public Key</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Expires</th>
+                  <th className="text-right px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
                 {clients.map((client) => (
-                  <tr key={client.id} className="hover:bg-gray-50">
+                  <tr key={client.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                     <td className="px-5 py-3.5">
-                      <div className="font-medium text-gray-900">{client.name}</div>
+                      <div className="font-medium text-gray-900 dark:text-white">{client.name}</div>
                       {client.description && (
-                        <div className="text-xs text-gray-400 mt-0.5">{client.description}</div>
+                        <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{client.description}</div>
                       )}
                     </td>
-                    <td className="px-5 py-3.5 font-mono text-xs text-gray-600">
+                    <td className="px-5 py-3.5 font-mono text-xs text-gray-600 dark:text-gray-400">
                       {client.allowed_ips}
                     </td>
-                    <td className="px-5 py-3.5 font-mono text-xs text-gray-400">
+                    <td className="px-5 py-3.5 font-mono text-xs text-gray-400 dark:text-gray-500">
                       {truncateKey(client.public_key)}
                     </td>
                     <td className="px-5 py-3.5">
@@ -398,14 +401,14 @@ export function ClientsPage() {
                         <button
                           onClick={() => setConfigClient(client)}
                           title="View config / QR code"
-                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                         >
                           <QrCode className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => toggleMutation.mutate({ id: client.id, enabled: !client.enabled })}
                           title={client.enabled ? 'Disable' : 'Enable'}
-                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                         >
                           {client.enabled
                             ? <ToggleRight className="w-4 h-4 text-green-600" />
@@ -415,7 +418,7 @@ export function ClientsPage() {
                         <button
                           onClick={() => handleDelete(client)}
                           title="Delete"
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>

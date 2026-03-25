@@ -64,14 +64,14 @@ function SecuritySettings() {
     <div className="space-y-6 max-w-lg">
       {/* TOTP section */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-900 mb-1">Two-Factor Authentication (TOTP)</h3>
-        <p className="text-sm text-gray-500 mb-4">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">Two-Factor Authentication (TOTP)</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
           Use an authenticator app (e.g. Google Authenticator, Authy) to require a one-time code at login.
         </p>
 
         {/* Status badge */}
         <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium mb-4 ${
-          totpEnabled ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600'
+          totpEnabled ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
         }`}>
           {totpEnabled
             ? <><ShieldCheck className="w-3.5 h-3.5" /> Enabled</>
@@ -93,7 +93,7 @@ function SecuritySettings() {
             ) : (
               <button
                 onClick={() => { setCode(''); setError(''); setView('disable') }}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
               >
                 <ShieldOff className="w-3.5 h-3.5" />
                 Disable TOTP
@@ -105,7 +105,7 @@ function SecuritySettings() {
         {/* Confirm (scan QR + enter code) */}
         {view === 'confirm' && (
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Scan the QR code with your authenticator app, then enter the 6-digit code to confirm.
             </p>
             {qrUrl && (
@@ -113,26 +113,26 @@ function SecuritySettings() {
                 <img
                   src={qrUrl}
                   alt="TOTP QR code"
-                  className="w-40 h-40 border border-gray-200 rounded-lg"
+                  className="w-40 h-40 border border-gray-200 dark:border-gray-700 rounded-lg"
                 />
               </div>
             )}
             <div>
-              <p className="text-xs text-gray-500 mb-1">Or enter the secret manually:</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Or enter the secret manually:</p>
               <div className="flex items-center gap-2">
-                <code className="flex-1 text-xs font-mono bg-gray-50 border border-gray-200 rounded px-3 py-2 text-gray-800 break-all">
+                <code className="flex-1 text-xs font-mono bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-3 py-2 text-gray-800 dark:text-gray-200 break-all">
                   {showSecret ? secret : '•'.repeat(secret.length)}
                 </code>
-                <button onClick={() => setShowSecret(s => !s)} className="p-2 text-gray-500 hover:bg-gray-100 rounded">
+                <button onClick={() => setShowSecret(s => !s)} className="p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
                   {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
-                <button onClick={handleCopySecret} className="p-2 text-gray-500 hover:bg-gray-100 rounded">
+                <button onClick={handleCopySecret} className="p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
                   {secretCopied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
                 </button>
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Verification Code</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Verification Code</label>
               <input
                 type="text"
                 inputMode="numeric"
@@ -140,11 +140,11 @@ function SecuritySettings() {
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                 placeholder="000000"
-                className="w-36 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-36 px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500"
                 autoFocus
               />
             </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
             <div className="flex gap-2">
               <button
                 onClick={() => confirmMutation.mutate()}
@@ -156,7 +156,7 @@ function SecuritySettings() {
               </button>
               <button
                 onClick={() => { setView('idle'); setCode(''); setError('') }}
-                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
               >
                 Cancel
               </button>
@@ -167,11 +167,11 @@ function SecuritySettings() {
         {/* Disable (enter code to confirm) */}
         {view === 'disable' && (
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Enter a current 6-digit code from your authenticator app to disable TOTP.
             </p>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Verification Code</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Verification Code</label>
               <input
                 type="text"
                 inputMode="numeric"
@@ -179,11 +179,11 @@ function SecuritySettings() {
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                 placeholder="000000"
-                className="w-36 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-36 px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500"
                 autoFocus
               />
             </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
             <div className="flex gap-2">
               <button
                 onClick={() => disableMutation.mutate()}
@@ -195,7 +195,7 @@ function SecuritySettings() {
               </button>
               <button
                 onClick={() => { setView('idle'); setCode(''); setError('') }}
-                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
               >
                 Cancel
               </button>
@@ -205,11 +205,11 @@ function SecuritySettings() {
       </div>
 
       {/* OIDC info box */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div className="text-sm font-medium text-blue-800 mb-1">OIDC / OAuth2</div>
-        <p className="text-sm text-blue-700">
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <div className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-1">OIDC / OAuth2</div>
+        <p className="text-sm text-blue-700 dark:text-blue-400">
           Configure OIDC providers via the{' '}
-          <code className="text-xs bg-blue-100 px-1 py-0.5 rounded font-mono">POST /api/settings/oidc</code>{' '}
+          <code className="text-xs bg-blue-100 dark:bg-blue-900/40 px-1 py-0.5 rounded font-mono">POST /api/settings/oidc</code>{' '}
           endpoint. Providers will be available as login options on the sign-in page once configured.
         </p>
       </div>
@@ -274,80 +274,80 @@ function ServerSettings() {
   })
 
   if (isLoading || endpointLoading) {
-    return <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
+    return <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-gray-400 dark:text-gray-500" /></div>
   }
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Listen Port</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Listen Port</label>
           <input
             type="number"
             value={form.listen_port}
             onChange={(e) => setForm(f => ({ ...f, listen_port: parseInt(e.target.value) }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Server Address (CIDR)</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Server Address (CIDR)</label>
           <input
             type="text"
             value={form.address}
             onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="10.0.0.1/24"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">DNS Servers</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">DNS Servers</label>
           <input
             type="text"
             value={form.dns}
             onChange={(e) => setForm(f => ({ ...f, dns: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="1.1.1.1, 8.8.8.8"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">MTU</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">MTU</label>
           <input
             type="number"
             value={form.mtu}
             onChange={(e) => setForm(f => ({ ...f, mtu: parseInt(e.target.value) }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Public Endpoint <span className="text-gray-400 font-normal">(used in client configs)</span>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Public Endpoint <span className="text-gray-400 dark:text-gray-500 font-normal">(used in client configs)</span>
         </label>
         <input
           type="text"
           value={endpoint}
           onChange={(e) => setEndpoint(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="vpn.example.com:51820"
         />
-        <p className="text-xs text-gray-500 mt-1">The address clients use to reach this server. Appears in downloaded .conf files and QR codes.</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">The address clients use to reach this server. Appears in downloaded .conf files and QR codes.</p>
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">PostUp</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PostUp</label>
         <textarea
           value={form.post_up}
           onChange={(e) => setForm(f => ({ ...f, post_up: e.target.value }))}
           rows={2}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">PostDown</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PostDown</label>
         <textarea
           value={form.post_down}
           onChange={(e) => setForm(f => ({ ...f, post_down: e.target.value }))}
           rows={2}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
       <div className="flex justify-end">
@@ -403,18 +403,18 @@ function APIKeys() {
   return (
     <div className="space-y-4">
       {createdKey && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-sm font-medium text-yellow-800 mb-2">
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+          <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300 mb-2">
             API key created. Copy it now — it won't be shown again.
           </p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 text-xs font-mono bg-white border border-yellow-200 rounded px-3 py-2 text-gray-800">
+            <code className="flex-1 text-xs font-mono bg-white dark:bg-gray-800 border border-yellow-200 dark:border-yellow-700 rounded px-3 py-2 text-gray-800 dark:text-gray-200">
               {showKey ? createdKey : '•'.repeat(32)}
             </code>
-            <button onClick={() => setShowKey(s => !s)} className="p-2 text-yellow-600 hover:bg-yellow-100 rounded">
+            <button onClick={() => setShowKey(s => !s)} className="p-2 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-900/40 rounded">
               {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
-            <button onClick={handleCopy} className="p-2 text-yellow-600 hover:bg-yellow-100 rounded">
+            <button onClick={handleCopy} className="p-2 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-900/40 rounded">
               {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
             </button>
           </div>
@@ -427,7 +427,7 @@ function APIKeys() {
             type="text"
             value={newKeyName}
             onChange={(e) => setNewKeyName(e.target.value)}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Key name (e.g. CI/CD pipeline)"
             autoFocus
           />
@@ -440,7 +440,7 @@ function APIKeys() {
           </button>
           <button
             onClick={() => setShowCreate(false)}
-            className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+            className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
           >
             Cancel
           </button>
@@ -448,7 +448,7 @@ function APIKeys() {
       ) : (
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
         >
           <Plus className="w-4 h-4" />
           Create API Key
@@ -458,25 +458,25 @@ function APIKeys() {
       {keys && keys.length > 0 && (
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-100">
-              <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">Name</th>
-              <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">Prefix</th>
-              <th className="text-left py-2 text-xs font-medium text-gray-500 uppercase">Last Used</th>
-              <th className="text-right py-2 text-xs font-medium text-gray-500 uppercase">Actions</th>
+            <tr className="border-b border-gray-100 dark:border-gray-800">
+              <th className="text-left py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</th>
+              <th className="text-left py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Prefix</th>
+              <th className="text-left py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Last Used</th>
+              <th className="text-right py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
             {keys.map((key: APIKey) => (
-              <tr key={key.id} className="hover:bg-gray-50">
-                <td className="py-3 font-medium text-gray-900">{key.name}</td>
-                <td className="py-3 font-mono text-xs text-gray-500">{key.key_prefix}</td>
-                <td className="py-3 text-xs text-gray-500">
+              <tr key={key.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                <td className="py-3 font-medium text-gray-900 dark:text-gray-100">{key.name}</td>
+                <td className="py-3 font-mono text-xs text-gray-500 dark:text-gray-400">{key.key_prefix}</td>
+                <td className="py-3 text-xs text-gray-500 dark:text-gray-400">
                   {key.last_used ? new Date(key.last_used).toLocaleDateString() : 'Never'}
                 </td>
                 <td className="py-3 text-right">
                   <button
                     onClick={() => deleteMutation.mutate(key.id)}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -502,13 +502,13 @@ export function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Settings</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Configure WireGate and WireGuard</p>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Settings</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Configure WireGate and WireGuard</p>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200">
+      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
         {/* Tabs */}
-        <div className="border-b border-gray-200 px-5 pt-4">
+        <div className="border-b border-gray-200 dark:border-gray-800 px-5 pt-4">
           <div className="flex gap-0">
             {tabs.map((t) => (
               <button
@@ -516,8 +516,8 @@ export function SettingsPage() {
                 onClick={() => setTab(t.id)}
                 className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                   tab === t.id
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                    ? 'border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
                 }`}
               >
                 <t.icon className="w-4 h-4" />
