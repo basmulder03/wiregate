@@ -1,12 +1,14 @@
 #:schema https://json.schemastore.org/any.json
 # air — Go hot-reload for WireGate backend
-# Invoked from the backend/ directory (see Makefile dev-backend target).
+# Must be run from the backend/ directory (the Go module root).
+# The Makefile 'dev' and 'dev-backend' targets do this via: cd backend && air
 
 # Load dev env vars from the repo root .env.dev on every restart.
+# Path is relative to backend/ (where air is invoked).
 env_files = ["../.env.dev"]
 
-root       = "."
-tmp_dir    = ".air-tmp"
+root    = "."
+tmp_dir = ".air-tmp"
 
 [build]
   cmd        = "CGO_ENABLED=1 go build -o .air-tmp/wiregate ./cmd/wiregate"
@@ -20,10 +22,10 @@ tmp_dir    = ".air-tmp"
   exclude_dir    = ["internal/static/ui", "vendor", "testdata"]
   exclude_regex  = ["_test\\.go"]
 
-  delay            = 500   # ms to wait after a change before rebuilding
-  kill_delay       = "2s"  # grace period before SIGKILL on the old process
-  send_interrupt   = true  # send SIGINT first so the server can shut down cleanly
-  stop_on_error    = false
+  delay             = 500   # ms to wait after a change before rebuilding
+  kill_delay        = "2s"  # grace period before SIGKILL on the old process
+  send_interrupt    = true  # send SIGINT first so the server can shut down cleanly
+  stop_on_error     = false
   exclude_unchanged = false
 
   log = "build-errors.log"

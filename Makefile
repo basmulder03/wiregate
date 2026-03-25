@@ -68,18 +68,20 @@ release-windows-amd64:
 
 ## Full dev mode: set up wgdev0, then run backend (air) + frontend (Vite) side-by-side.
 ## Press Ctrl-C to stop both; the trap will tear down the wgdev0 interface.
-dev: dev-setup
+dev:
+	@scripts/dev-setup.sh
 	@echo ""
 	@echo "Starting backend (air hot-reload) and frontend (Vite HMR) ..."
 	@echo "Backend → http://localhost:8080  |  Frontend → http://localhost:5173"
 	@echo ""
-	@trap 'kill 0; $(MAKE) dev-teardown' INT TERM EXIT; \
+	@trap 'kill 0; scripts/dev-teardown.sh' INT TERM EXIT; \
 	  ( cd backend && air ) & \
 	  ( cd frontend && pnpm dev ) & \
 	  wait
 
 ## Run only the backend with air hot-reload (loads .env.dev automatically).
-dev-backend: dev-setup
+dev-backend:
+	@scripts/dev-setup.sh
 	cd backend && air
 
 ## Run only the Vite frontend dev server (proxies /api → :8080).
