@@ -53,8 +53,8 @@ func (h *Handler) GetSetupDefaults(c *gin.Context) {
 		defaultEgressIface = "eth0"
 	}
 	endpoint := pickSuggestedEndpoint(detectedIPs, defaultSourceIP, address, listenPort, devMode)
-	postUp := buildDefaultPostUp(defaultEgressIface)
-	postDown := buildDefaultPostDown(defaultEgressIface)
+	postUp := buildDefaultPostUp(defaultEgressIface, address)
+	postDown := buildDefaultPostDown(defaultEgressIface, address)
 
 	var existing models.WireGuardServer
 	if err := h.db.First(&existing).Error; err == nil {
@@ -63,6 +63,8 @@ func (h *Handler) GetSetupDefaults(c *gin.Context) {
 		}
 		if strings.TrimSpace(existing.Address) != "" {
 			address = existing.Address
+			postUp = buildDefaultPostUp(defaultEgressIface, address)
+			postDown = buildDefaultPostDown(defaultEgressIface, address)
 		}
 		if strings.TrimSpace(existing.DNS) != "" {
 			dns = existing.DNS
@@ -292,20 +294,36 @@ func pickSuggestedEndpoint(detectedIPs []string, preferredIP, serverCIDR string,
 	return net.JoinHostPort(selectedIP, strconv.Itoa(listenPort))
 }
 
-func buildDefaultPostUp(egressIface string) string {
+func buildDefaultPostUp(egressIface, serverCIDR string) string {
 	iface := strings.TrimSpace(egressIface)
 	if iface == "" {
 		iface = "eth0"
 	}
-	return "iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -o " + iface + " -j MASQUERADE"
+	networkCIDR := networkCIDRFromAddress(serverCIDR)
+	if networkCIDR != "" {
+		return "iptables -A FORWARD -i %i -o " + iface + " -j ACCEPT; iptables -A FORWARD -i " + iface + " -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT; iptables -t nat -A POSTROUTING -s " + networkCIDR + " -o " + iface + " -j MASQUERADE"
+	}
+	return "iptables -A FORWARD -i %i -o " + iface + " -j ACCEPT; iptables -A FORWARD -i " + iface + " -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT; iptables -t nat -A POSTROUTING -o " + iface + " -j MASQUERADE"
 }
 
-func buildDefaultPostDown(egressIface string) string {
+func buildDefaultPostDown(egressIface, serverCIDR string) string {
 	iface := strings.TrimSpace(egressIface)
 	if iface == "" {
 		iface = "eth0"
 	}
-	return "iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -o " + iface + " -j MASQUERADE"
+	networkCIDR := networkCIDRFromAddress(serverCIDR)
+	if networkCIDR != "" {
+		return "iptables -D FORWARD -i %i -o " + iface + " -j ACCEPT || true; iptables -D FORWARD -i " + iface + " -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT || true; iptables -t nat -D POSTROUTING -s " + networkCIDR + " -o " + iface + " -j MASQUERADE || true"
+	}
+	return "iptables -D FORWARD -i %i -o " + iface + " -j ACCEPT || true; iptables -D FORWARD -i " + iface + " -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT || true; iptables -t nat -D POSTROUTING -o " + iface + " -j MASQUERADE || true"
+}
+
+func networkCIDRFromAddress(address string) string {
+	_, ipNet, err := net.ParseCIDR(strings.TrimSpace(address))
+	if err != nil || ipNet == nil {
+		return ""
+	}
+	return ipNet.String()
 }
 
 func detectDefaultRouteInfo() (string, string) {

@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { serverApi, authApi, settingsApi, versionApi } from '@/api'
+import { serverApi, authApi, settingsApi, setupApi, versionApi } from '@/api'
 import { CIDRBuilderModal } from '@/components/network/CIDRBuilderModal'
 import { useAuth } from '@/context/AuthContext'
 import { Key, Shield, Server, Loader2, Plus, Trash2, Eye, EyeOff, Copy, Check, ShieldCheck, ShieldOff, RefreshCw, Download, GitBranch, Pencil, LogIn, X } from 'lucide-react'
@@ -524,12 +524,17 @@ function ServerSettings() {
     queryFn: () => settingsApi.getEndpoint().then((r) => r.data),
   })
 
+  const { data: setupDefaults } = useQuery({
+    queryKey: ['setup-defaults', 'settings'],
+    queryFn: () => setupApi.defaults().then((r) => r.data),
+  })
+
   const [form, setForm] = useState({
     listen_port: 51820,
     address: '10.0.0.1/24',
     dns: '1.1.1.1',
-    post_up: 'iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE',
-    post_down: 'iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE',
+    post_up: 'iptables -A FORWARD -i %i -o eth0 -j ACCEPT; iptables -A FORWARD -i eth0 -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE',
+    post_down: 'iptables -D FORWARD -i %i -o eth0 -j ACCEPT || true; iptables -D FORWARD -i eth0 -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT || true; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE || true',
     mtu: 1420,
   })
   const [endpoint, setEndpoint] = useState('')
@@ -550,6 +555,22 @@ function ServerSettings() {
     setInitialized(true)
   }
 
+  useEffect(() => {
+    if (initialized || server || !setupDefaults) return
+    setForm((current) => ({
+      ...current,
+      listen_port: setupDefaults.listen_port || current.listen_port,
+      address: setupDefaults.address || current.address,
+      dns: setupDefaults.dns || current.dns,
+      post_up: setupDefaults.post_up || current.post_up,
+      post_down: setupDefaults.post_down || current.post_down,
+    }))
+    if (setupDefaults.endpoint && !endpoint) {
+      setEndpoint(setupDefaults.endpoint)
+    }
+    setInitialized(true)
+  }, [endpoint, initialized, server, setupDefaults])
+
   // Populate endpoint once loaded (separate from server form init)
   if (endpointData !== undefined && endpoint === '' && endpointData.endpoint) {
     setEndpoint(endpointData.endpoint)
@@ -560,12 +581,21 @@ function ServerSettings() {
       await serverApi.update(form)
       await settingsApi.setEndpoint(endpoint)
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['server'] })
       queryClient.invalidateQueries({ queryKey: ['endpoint'] })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
       addToast({ kind: 'success', title: 'Settings saved', message: 'Server configuration updated.' })
+
+      if (window.confirm('Server settings were saved. Restart WireGuard now to apply changes?')) {
+        try {
+          await serverApi.restart()
+          addToast({ kind: 'info', title: 'WireGuard restarted', message: 'Configuration changes are now active.' })
+        } catch {
+          addToast({ kind: 'error', title: 'Restart failed', message: 'Settings were saved, but WireGuard restart failed.' })
+        }
+      }
     },
     onError: () => addToast({ kind: 'error', title: 'Save failed', message: 'Could not save server settings.' }),
   })

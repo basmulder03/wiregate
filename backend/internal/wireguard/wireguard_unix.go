@@ -99,7 +99,9 @@ func (m *Manager) Start() error {
 		if strings.Contains(string(out), "already exists") {
 			if isDevMode() {
 				if downOut, downErr := runCommand("wg-quick", "down", confPath).CombinedOutput(); downErr != nil {
-					return fmt.Errorf("failed to reset dev WireGuard interface: %s: %w", string(downOut), downErr)
+					if !isIgnorableWgQuickDownError(string(downOut)) {
+						return fmt.Errorf("failed to reset dev WireGuard interface: %s: %w", string(downOut), downErr)
+					}
 				}
 				retryOut, retryErr := runCommand("wg-quick", "up", confPath).CombinedOutput()
 				if retryErr != nil {
@@ -124,9 +126,23 @@ func (m *Manager) Stop() error {
 	confPath := filepath.Join(m.configDir, m.iface+".conf")
 	out, err := runCommand("wg-quick", "down", confPath).CombinedOutput()
 	if err != nil {
+		if isIgnorableWgQuickDownError(string(out)) {
+			return nil
+		}
 		return fmt.Errorf("failed to stop WireGuard: %s: %w", string(out), err)
 	}
 	return nil
+}
+
+func isIgnorableWgQuickDownError(output string) bool {
+	lower := strings.ToLower(output)
+	if strings.Contains(lower, "bad rule") ||
+		strings.Contains(lower, "no chain/target/match") ||
+		strings.Contains(lower, "does not exist") ||
+		strings.Contains(lower, "interface does not exist") {
+		return true
+	}
+	return false
 }
 
 // Restart restarts the WireGuard interface.

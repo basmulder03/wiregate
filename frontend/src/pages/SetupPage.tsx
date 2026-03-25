@@ -153,9 +153,9 @@ interface ServerForm {
 }
 
 const DEFAULT_POST_UP =
-  'iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE'
+  'iptables -A FORWARD -i %i -o eth0 -j ACCEPT; iptables -A FORWARD -i eth0 -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE'
 const DEFAULT_POST_DOWN =
-  'iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE'
+  'iptables -D FORWARD -i %i -o eth0 -j ACCEPT || true; iptables -D FORWARD -i eth0 -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT || true; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE || true'
 
 function StepServerConfig({ onDone }: { onDone: () => void }) {
   const [form, setForm] = useState<ServerForm>({
