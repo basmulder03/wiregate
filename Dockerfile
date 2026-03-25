@@ -2,11 +2,12 @@
 FROM node:22-alpine AS frontend-builder
 
 WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci --legacy-peer-deps
+RUN corepack enable pnpm
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 COPY frontend/ .
-RUN npm run build
+RUN pnpm build
 
 # ── Stage 2: Build backend ────────────────────────────────────────────────────
 FROM golang:1.23-alpine AS backend-builder

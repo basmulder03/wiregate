@@ -12,7 +12,7 @@ backend:
 
 ## Build React frontend
 frontend:
-	cd frontend && npm run build
+	cd frontend && pnpm build
 
 ## Run backend in development mode (hot-reload requires 'air')
 dev-backend:
@@ -20,7 +20,7 @@ dev-backend:
 
 ## Run frontend in development mode with HMR
 dev-frontend:
-	cd frontend && npm run dev
+	cd frontend && pnpm dev
 
 ## Install Go dev tools
 tools:
