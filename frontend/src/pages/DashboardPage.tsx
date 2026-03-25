@@ -44,15 +44,12 @@ export function DashboardPage() {
   const { data: connections } = useQuery({
     queryKey: ['connections'],
     queryFn: () => connectionsApi.list().then((r) => r.data),
-    refetchInterval: 5000,
   })
 
   const refreshServerState = async () => {
     await queryClient.invalidateQueries({ queryKey: ['server-status'] })
-    await queryClient.invalidateQueries({ queryKey: ['connections'] })
     window.setTimeout(() => {
       refetchStatus()
-      queryClient.invalidateQueries({ queryKey: ['connections'] })
     }, 1000)
   }
 
@@ -193,7 +190,7 @@ export function DashboardPage() {
             <Activity className="w-4 h-4 text-gray-500 dark:text-gray-400" />
             <h2 className="font-medium text-gray-900 dark:text-white">Active Connections</h2>
             {connections && connections.length > 0 && (
-              <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">Live updates every 5s</span>
+              <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">Live updates</span>
             )}
           </div>
         </div>

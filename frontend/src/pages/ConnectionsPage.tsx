@@ -11,7 +11,6 @@ export function ConnectionsPage() {
   const { data: connections, isLoading, dataUpdatedAt } = useQuery({
     queryKey: ['connections'],
     queryFn: () => connectionsApi.list().then((r) => r.data),
-    refetchInterval: 5000,
   })
 
   const disconnectMutation = useMutation({
@@ -60,7 +59,7 @@ export function ConnectionsPage() {
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            <span className="text-xs text-gray-500 dark:text-gray-400">Auto-refresh every 5s</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">Live updates</span>
           </div>
         </div>
 

@@ -17,7 +17,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/context/ThemeContext'
 import { useToast } from '@/context/ToastContext'
 import { useWebSocket } from '@/hooks/useWebSocket'
-import type { WSNotification } from '@/types'
+import type { ConnectedPeer, WSNotification } from '@/types'
 import { cn } from '@/lib/utils'
 import { useQueryClient } from '@tanstack/react-query'
 
@@ -71,7 +71,7 @@ export function Layout({ children }: { children: ReactNode }) {
   useWebSocket({
     onMessage: (data) => {
       if (data.type === 'connections') {
-        queryClient.invalidateQueries({ queryKey: ['connections'] })
+        queryClient.setQueryData(['connections'], (data.peers ?? []) as ConnectedPeer[])
         return
       }
 
