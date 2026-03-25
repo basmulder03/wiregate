@@ -90,8 +90,39 @@ export interface ServerStatus {
 
 export interface SetupStatus {
   setup_required: boolean
+  admin_configured?: boolean
+  server_configured?: boolean
   wg_installed: boolean
   wg_running: boolean
+}
+
+export interface SetupDefaultsResponse {
+  mode: 'development' | 'production'
+  interface: string
+  address: string
+  listen_port: number
+  dns: string
+  endpoint: string
+  detected_ipv4_cidrs: string[]
+  detected_ipv4_ips: string[]
+  detected_dns: string[]
+}
+
+export interface DNSResolverCheck {
+  resolver: string
+  reachable: boolean
+  latency_ms?: number
+  resolver_type?: string
+  resolver_ptr?: string
+  resolved_ips?: string[]
+  error?: string
+}
+
+export interface SetupDNSCheckResponse {
+  dns: string
+  test_domain: string
+  available: boolean
+  resolver_info: DNSResolverCheck[]
 }
 
 export interface LoginResponse {
@@ -134,6 +165,24 @@ export interface VersionInfo {
 export interface UpdateSettings {
   auto_update_enabled: boolean
   auto_update_window: string
+}
+
+export interface SystemLogEntry {
+  timestamp: string
+  service: 'wiregate' | 'wireguard'
+  unit: string
+  message: string
+}
+
+export interface SystemLogsResponse {
+  supported: boolean
+  error?: string
+  details?: string
+  services?: string[]
+  units?: string[]
+  lines?: number
+  generated_at?: string
+  entries: SystemLogEntry[]
 }
 
 /** WebSocket notification message pushed from the server. */

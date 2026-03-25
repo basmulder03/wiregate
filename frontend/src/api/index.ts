@@ -9,10 +9,13 @@ import type {
   AuditLogListResponse,
   ServerStatus,
   SetupStatus,
+  SetupDefaultsResponse,
+  SetupDNSCheckResponse,
   OIDCProvider,
   OIDCConfig,
   VersionInfo,
   UpdateSettings,
+  SystemLogsResponse,
 } from '@/types'
 
 // Auth
@@ -55,6 +58,9 @@ export const authApi = {
 // Setup status
 export const setupApi = {
   status: () => api.get<SetupStatus>('/setup/status'),
+  defaults: () => api.get<SetupDefaultsResponse>('/setup/defaults'),
+  checkDNS: (dns: string, testDomain?: string) =>
+    api.post<SetupDNSCheckResponse>('/setup/dns/check', { dns, test_domain: testDomain }),
 }
 
 // Server
@@ -165,4 +171,9 @@ export const usersApi = {
 export const versionApi = {
   get: () => api.get<VersionInfo>('/version'),
   triggerUpdate: () => api.post<{ message: string; target?: string }>('/system/update'),
+}
+
+export const systemApi = {
+  logs: (params?: { lines?: number; services?: string }) =>
+    api.get<SystemLogsResponse>('/system/logs', { params }),
 }

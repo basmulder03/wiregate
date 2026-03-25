@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { authApi, serverApi, settingsApi } from '@/api'
+import { useQuery } from '@tanstack/react-query'
+import { authApi, serverApi, settingsApi, setupApi } from '@/api'
 import { CIDRBuilderModal } from '@/components/network/CIDRBuilderModal'
 import { useAuth } from '@/context/AuthContext'
 import { Network, Loader2, Check, ChevronRight, Server, User } from 'lucide-react'
+import type { SetupDNSCheckResponse } from '@/types'
 
 // ── Step indicator ────────────────────────────────────────────────────────────
 
@@ -169,9 +171,47 @@ function StepServerConfig({ onDone }: { onDone: () => void }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [isCIDRBuilderOpen, setIsCIDRBuilderOpen] = useState(false)
+  const [defaultsApplied, setDefaultsApplied] = useState(false)
+  const [dnsChecking, setDnsChecking] = useState(false)
+  const [dnsCheckError, setDnsCheckError] = useState('')
+  const [dnsCheckResult, setDnsCheckResult] = useState<SetupDNSCheckResponse | null>(null)
+
+  const { data: setupDefaults } = useQuery({
+    queryKey: ['setup-defaults'],
+    queryFn: () => setupApi.defaults().then((r) => r.data),
+  })
+
+  useEffect(() => {
+    if (!setupDefaults || defaultsApplied) return
+
+    setForm((current) => ({
+      ...current,
+      interface: setupDefaults.interface || current.interface,
+      address: setupDefaults.address || current.address,
+      listen_port: String(setupDefaults.listen_port || current.listen_port),
+      dns: setupDefaults.dns || current.dns,
+      endpoint: setupDefaults.endpoint || current.endpoint,
+    }))
+    setDefaultsApplied(true)
+  }, [defaultsApplied, setupDefaults])
 
   const set = (field: keyof ServerForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [field]: e.target.value }))
+
+  const checkDNS = async () => {
+    setDnsCheckError('')
+    setDnsChecking(true)
+    try {
+      const res = await setupApi.checkDNS(form.dns)
+      setDnsCheckResult(res.data)
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+      setDnsCheckError(msg || 'Failed to check DNS servers')
+      setDnsCheckResult(null)
+    } finally {
+      setDnsChecking(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -237,6 +277,11 @@ function StepServerConfig({ onDone }: { onDone: () => void }) {
             max={65535}
             required
           />
+          {setupDefaults && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Suggested ({setupDefaults.mode}): <code>{setupDefaults.listen_port}</code>
+            </p>
+          )}
         </div>
       </div>
 
@@ -262,18 +307,73 @@ function StepServerConfig({ onDone }: { onDone: () => void }) {
           </button>
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">The VPN subnet — clients will get IPs from this range.</p>
+        {setupDefaults && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Suggested ({setupDefaults.mode}): <code>{setupDefaults.address}</code>
+            {setupDefaults.detected_ipv4_cidrs.length > 0
+              ? ` • host IPv4: ${setupDefaults.detected_ipv4_cidrs.join(', ')}`
+              : ''}
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className={labelCls}>DNS</label>
-          <input
-            type="text"
-            value={form.dns}
-            onChange={set('dns')}
-            className={inputCls}
-            placeholder="1.1.1.1"
-          />
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={form.dns}
+              onChange={(e) => {
+                set('dns')(e)
+                setDnsCheckResult(null)
+                setDnsCheckError('')
+              }}
+              className={inputCls}
+              placeholder="1.1.1.1, 8.8.8.8"
+            />
+            <button
+              type="button"
+              onClick={checkDNS}
+              disabled={!form.dns.trim() || dnsChecking}
+              className="shrink-0 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {dnsChecking ? 'Checking...' : 'Check DNS'}
+            </button>
+          </div>
+
+          {setupDefaults && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Suggested for {setupDefaults.mode} mode: <code>{setupDefaults.dns}</code>
+            </p>
+          )}
+
+          {dnsCheckError && (
+            <p className="text-xs text-red-600 dark:text-red-400 mt-1">{dnsCheckError}</p>
+          )}
+
+          {dnsCheckResult && (
+            <div className={`mt-2 rounded-lg border p-2.5 text-xs ${
+              dnsCheckResult.available
+                ? 'bg-green-50 dark:bg-green-900/15 border-green-200 dark:border-green-900/50 text-green-700 dark:text-green-300'
+                : 'bg-amber-50 dark:bg-amber-900/15 border-amber-200 dark:border-amber-900/50 text-amber-700 dark:text-amber-300'
+            }`}>
+              <div className="font-medium">
+                {dnsCheckResult.available
+                  ? `DNS lookup succeeded for ${dnsCheckResult.test_domain}`
+                  : `DNS lookup failed for ${dnsCheckResult.test_domain}`}
+              </div>
+              <div className="mt-1 space-y-1">
+                {dnsCheckResult.resolver_info.map((resolver) => (
+                  <div key={resolver.resolver} className="font-mono break-all">
+                    {resolver.resolver} • {resolver.reachable ? `ok (${resolver.latency_ms ?? 0}ms)` : resolver.error || 'unreachable'}
+                    {resolver.resolver_ptr ? ` • ${resolver.resolver_ptr}` : ''}
+                    {resolver.resolved_ips && resolver.resolved_ips.length > 0 ? ` • ${resolver.resolved_ips.join(', ')}` : ''}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div>
           <label className={labelCls}>MTU</label>
@@ -303,6 +403,14 @@ function StepServerConfig({ onDone }: { onDone: () => void }) {
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           The public address clients use to reach this server. Can be set later in Settings.
         </p>
+        {setupDefaults?.endpoint && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Suggested ({setupDefaults.mode}): <code>{setupDefaults.endpoint}</code>
+            {setupDefaults.detected_ipv4_ips.length > 0
+              ? ` • detected IPs: ${setupDefaults.detected_ipv4_ips.join(', ')}`
+              : ''}
+          </p>
+        )}
       </div>
 
       <details className="group">
@@ -390,14 +498,27 @@ function StepDone() {
 
 const STEP_META: Record<number, { title: string; description: string }> = {
   1: { title: 'Create admin account', description: 'Set up your administrator credentials' },
-  2: { title: 'Configure WireGuard', description: 'Set the server network parameters' },
+  2: { title: 'Configure WireGuard', description: 'Set network parameters and validate DNS before continuing' },
   3: { title: 'Setup complete', description: '' },
 }
 
 // ── Main wizard component ─────────────────────────────────────────────────────
 
 export function SetupPage() {
+  const { isAuthenticated } = useAuth()
+  const { data: setupStatus } = useQuery({
+    queryKey: ['setup-status'],
+    queryFn: () => setupApi.status().then((r) => r.data),
+  })
   const [step, setStep] = useState(1)
+
+  useEffect(() => {
+    if (!setupStatus) return
+    if (setupStatus.admin_configured && isAuthenticated) {
+      setStep((current) => (current < 2 ? 2 : current))
+    }
+  }, [isAuthenticated, setupStatus])
+
   const meta = STEP_META[step] ?? STEP_META[1]
 
   return (
@@ -435,18 +556,6 @@ export function SetupPage() {
           {step === 3 && <StepDone />}
         </div>
 
-        {/* Skip server config — only on step 2 */}
-        {step === 2 && (
-          <p className="text-center text-xs text-gray-400 dark:text-gray-600 mt-4">
-            <button
-              onClick={() => setStep(3)}
-              className="underline hover:text-gray-600 dark:hover:text-gray-400 transition-colors"
-            >
-              Skip for now
-            </button>
-            {' '}— you can configure the server later in Settings.
-          </p>
-        )}
       </div>
     </div>
   )

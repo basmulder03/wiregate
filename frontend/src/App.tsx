@@ -7,6 +7,7 @@ import { SetupPage } from './pages/SetupPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { ClientsPage } from './pages/ClientsPage'
 import { ConnectionsPage } from './pages/ConnectionsPage'
+import { LogsPage } from './pages/LogsPage'
 import { AuditPage } from './pages/AuditPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { UsersPage } from './pages/UsersPage'
@@ -24,7 +25,17 @@ const queryClient = new QueryClient({
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth()
+
+  const { data: status, isLoading } = useQuery({
+    queryKey: ['setup-status'],
+    queryFn: () => setupApi.status().then((r) => r.data),
+    enabled: isAuthenticated,
+    staleTime: 0,
+  })
+
   if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (isLoading) return null
+  if (status?.setup_required) return <Navigate to="/setup" replace />
   return <Layout>{children}</Layout>
 }
 
@@ -42,7 +53,7 @@ function SetupGuard({ children }: { children: React.ReactNode }) {
 
   if (isLoading) return null
 
-  if (status?.setup_required) {
+  if (status?.setup_required && !status?.admin_configured) {
     return <Navigate to="/setup" replace />
   }
 
@@ -62,9 +73,13 @@ function SetupPageGuard({ children }: { children: React.ReactNode }) {
 
   if (isLoading) return null
 
-  // Already logged in, or setup was already completed — no reason to be here.
-  if (isAuthenticated || (status && !status.setup_required)) {
+  if (status && !status.setup_required) {
     return <Navigate to="/" replace />
+  }
+
+  // Admin user exists but the requester is not authenticated yet.
+  if (!isAuthenticated && status?.admin_configured) {
+    return <Navigate to="/login" replace />
   }
 
   return <>{children}</>
@@ -123,6 +138,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AuditPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/logs"
+        element={
+          <ProtectedRoute>
+            <LogsPage />
           </ProtectedRoute>
         }
       />

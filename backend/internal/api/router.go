@@ -112,6 +112,14 @@ func SetupRouter(handler *Handler, authSvc *auth.Service, allowedOrigins []strin
 			settings.PUT("/updates", handler.SetUpdateSettings)
 		}
 
+		// Setup helpers (admin only)
+		setup := protected.Group("/setup")
+		setup.Use(middleware.RequireAdmin())
+		{
+			setup.GET("/defaults", handler.GetSetupDefaults)
+			setup.POST("/dns/check", handler.CheckSetupDNS)
+		}
+
 		// User management (admin only)
 		users := protected.Group("/users")
 		users.Use(middleware.RequireAdmin())
@@ -127,6 +135,7 @@ func SetupRouter(handler *Handler, authSvc *auth.Service, allowedOrigins []strin
 		system := protected.Group("/system")
 		system.Use(middleware.RequireAdmin())
 		{
+			system.GET("/logs", handler.GetSystemLogs)
 			system.POST("/update", handler.TriggerUpdate)
 		}
 	}

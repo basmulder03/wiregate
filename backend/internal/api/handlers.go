@@ -702,10 +702,16 @@ func (h *Handler) DisconnectPeer(c *gin.Context) {
 // GetSetupStatus returns whether initial setup is required
 // GET /api/setup/status
 func (h *Handler) GetSetupStatus(c *gin.Context) {
+	adminConfigured := !h.authSvc.IsSetupRequired()
+	serverConfigured := h.isServerConfigured()
+	setupRequired := !(adminConfigured && serverConfigured)
+
 	c.JSON(http.StatusOK, gin.H{
-		"setup_required": h.authSvc.IsSetupRequired(),
-		"wg_installed":   wireguard.IsInstalled(),
-		"wg_running":     h.wgMgr.IsRunning(),
+		"setup_required":    setupRequired,
+		"admin_configured":  adminConfigured,
+		"server_configured": serverConfigured,
+		"wg_installed":      wireguard.IsInstalled(),
+		"wg_running":        h.wgMgr.IsRunning(),
 	})
 }
 
