@@ -46,8 +46,8 @@ func SetupRouter(handler *Handler, authSvc *auth.Service, allowedOrigins []strin
 		public.GET("/version", handler.GetVersion)
 	}
 
-	// WebSocket (auth validated inside for ws compatibility)
-	api.GET("/ws", middleware.AuthMiddleware(authSvc), handler.ServeWS)
+	// WebSocket (auth validated after upgrade for browser compatibility)
+	api.GET("/ws", handler.ServeWS)
 
 	// Protected routes
 	protected := api.Group("")

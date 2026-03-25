@@ -3,7 +3,7 @@
 # Prepares the local development environment:
 #   1. Creates .dev-data/ directories (no privilege needed)
 #   2. Generates a WireGuard key pair for wgdev0 (no privilege needed)
-#   3. Writes .dev-data/wireguard/wgdev0.conf  (no privilege needed)
+#   3. Writes a Linux-native temp config for wgdev0 (no privilege needed)
 #   4. Brings up the wgdev0 interface via sudo wg-quick (needs sudo)
 #
 # Safe to run repeatedly — idempotent at every step.
@@ -17,7 +17,8 @@ IFACE="wgdev0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-WG_DIR="${ROOT_DIR}/.dev-data/wireguard"
+RUNTIME_BASE="${XDG_RUNTIME_DIR:-/tmp/wiregate-${USER:-dev}}"
+WG_DIR="${RUNTIME_BASE}/wireguard"
 DATA_DIR="${ROOT_DIR}/.dev-data"
 CONF_FILE="${WG_DIR}/${IFACE}.conf"
 
@@ -45,6 +46,7 @@ fi
 # ── Create data directories ───────────────────────────────────────────────────
 mkdir -p "${DATA_DIR}" "${WG_DIR}"
 ok "data dirs ready  (${DATA_DIR}/)"
+ok "wireguard dir ready (${WG_DIR}/)"
 
 # ── Generate key pair ─────────────────────────────────────────────────────────
 PRIVKEY_FILE="${WG_DIR}/${IFACE}.privkey"

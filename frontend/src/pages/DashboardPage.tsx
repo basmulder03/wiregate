@@ -29,7 +29,7 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
 export function DashboardPage() {
   const queryClient = useQueryClient()
 
-  const { data: status, isLoading: statusLoading } = useQuery({
+  const { data: status, isLoading: statusLoading, refetch: refetchStatus } = useQuery({
     queryKey: ['server-status'],
     queryFn: () => serverApi.status().then((r) => r.data),
     refetchInterval: 10000,
@@ -46,17 +46,26 @@ export function DashboardPage() {
     refetchInterval: 5000,
   })
 
+  const refreshServerState = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['server-status'] })
+    await queryClient.invalidateQueries({ queryKey: ['connections'] })
+    window.setTimeout(() => {
+      refetchStatus()
+      queryClient.invalidateQueries({ queryKey: ['connections'] })
+    }, 1000)
+  }
+
   const startMutation = useMutation({
     mutationFn: serverApi.start,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['server-status'] }),
+    onSuccess: refreshServerState,
   })
   const stopMutation = useMutation({
     mutationFn: serverApi.stop,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['server-status'] }),
+    onSuccess: refreshServerState,
   })
   const restartMutation = useMutation({
     mutationFn: serverApi.restart,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['server-status'] }),
+    onSuccess: refreshServerState,
   })
 
   const totalRx = connections?.reduce((s, p) => s + (p.TransferRx || 0), 0) ?? 0
@@ -84,7 +93,7 @@ export function DashboardPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <Play className="w-3.5 h-3.5" />
-                Start
+                {startMutation.isPending ? 'Starting...' : 'Start'}
               </button>
               <button
                 onClick={() => stopMutation.mutate()}
@@ -92,7 +101,7 @@ export function DashboardPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <Square className="w-3.5 h-3.5" />
-                Stop
+                {stopMutation.isPending ? 'Stopping...' : 'Stop'}
               </button>
               <button
                 onClick={() => restartMutation.mutate()}
@@ -100,7 +109,7 @@ export function DashboardPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                Restart
+                {restartMutation.isPending ? 'Restarting...' : 'Restart'}
               </button>
             </>
           )}
@@ -139,7 +148,7 @@ export function DashboardPage() {
             <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
               WireGuard is {isRunning ? 'running' : 'stopped'}
             </span>
-            {status?.systemd_status && (
+            {status?.systemd_status && status.systemd_status !== 'inactive' && status.systemd_status !== 'n/a' && (
               <Badge variant={status.systemd_status === 'active' ? 'success' : 'secondary'}>
                 systemd: {status.systemd_status}
               </Badge>

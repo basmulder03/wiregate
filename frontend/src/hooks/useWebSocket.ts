@@ -13,6 +13,7 @@ type UseWebSocketOptions = {
 export function useWebSocket({ onMessage, enabled = true }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const shouldReconnectRef = useRef(true)
   const onMessageRef = useRef(onMessage)
   onMessageRef.current = onMessage
 
@@ -25,9 +26,9 @@ export function useWebSocket({ onMessage, enabled = true }: UseWebSocketOptions)
 
     const ws = new WebSocket(wsUrl)
     wsRef.current = ws
+    shouldReconnectRef.current = true
 
     ws.onopen = () => {
-      // Send token for auth
       ws.send(JSON.stringify({ token }))
     }
 
@@ -41,7 +42,7 @@ export function useWebSocket({ onMessage, enabled = true }: UseWebSocketOptions)
     }
 
     ws.onclose = () => {
-      if (enabled) {
+      if (enabled && shouldReconnectRef.current) {
         reconnectTimerRef.current = setTimeout(connect, 5000)
       }
     }
@@ -56,6 +57,7 @@ export function useWebSocket({ onMessage, enabled = true }: UseWebSocketOptions)
       connect()
     }
     return () => {
+      shouldReconnectRef.current = false
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current)
       }

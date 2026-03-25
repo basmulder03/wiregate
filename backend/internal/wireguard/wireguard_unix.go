@@ -72,27 +72,57 @@ func installWireGuardDarwin() error {
 	return nil
 }
 
+func runCommand(name string, args ...string) *exec.Cmd {
+	if isDevMode() {
+		return exec.Command("sudo", append([]string{"-n", name}, args...)...)
+	}
+	return exec.Command(name, args...)
+}
+
 // IsRunning checks if the WireGuard interface is up.
 func (m *Manager) IsRunning() bool {
-	return exec.Command("wg", "show", m.iface).Run() == nil
+	return runCommand("wg", "show", m.iface).Run() == nil
 }
 
 // Start brings up the WireGuard interface.
 func (m *Manager) Start() error {
+	if m.IsRunning() {
+		return nil
+	}
+
 	confPath := filepath.Join(m.configDir, m.iface+".conf")
 	if _, err := os.Stat(confPath); os.IsNotExist(err) {
 		return fmt.Errorf("config file not found: %s", confPath)
 	}
-	out, err := exec.Command("wg-quick", "up", m.iface).CombinedOutput()
+	out, err := runCommand("wg-quick", "up", confPath).CombinedOutput()
 	if err != nil {
+		if strings.Contains(string(out), "already exists") {
+			if isDevMode() {
+				if downOut, downErr := runCommand("wg-quick", "down", confPath).CombinedOutput(); downErr != nil {
+					return fmt.Errorf("failed to reset dev WireGuard interface: %s: %w", string(downOut), downErr)
+				}
+				retryOut, retryErr := runCommand("wg-quick", "up", confPath).CombinedOutput()
+				if retryErr != nil {
+					return fmt.Errorf("failed to start WireGuard after dev reset: %s: %w", string(retryOut), retryErr)
+				}
+				return nil
+			}
+			return nil
+		}
 		return fmt.Errorf("failed to start WireGuard: %s: %w", string(out), err)
 	}
 	return nil
 }
 
+func isDevMode() bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv("WIREGATE_DEV_MODE")))
+	return value == "1" || value == "true" || value == "yes"
+}
+
 // Stop brings down the WireGuard interface.
 func (m *Manager) Stop() error {
-	out, err := exec.Command("wg-quick", "down", m.iface).CombinedOutput()
+	confPath := filepath.Join(m.configDir, m.iface+".conf")
+	out, err := runCommand("wg-quick", "down", confPath).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to stop WireGuard: %s: %w", string(out), err)
 	}
@@ -115,7 +145,7 @@ func (m *Manager) Reload(conf *ServerConf) error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("wg", "syncconf", m.iface, "/dev/stdin")
+	cmd := runCommand("wg", "syncconf", m.iface, "/dev/stdin")
 	cmd.Stdin = strings.NewReader(stripped)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -126,7 +156,7 @@ func (m *Manager) Reload(conf *ServerConf) error {
 
 // GetConnectedPeers parses `wg show dump` output for live connection data.
 func (m *Manager) GetConnectedPeers() ([]ConnectedPeer, error) {
-	out, err := exec.Command("wg", "show", m.iface, "dump").CombinedOutput()
+	out, err := runCommand("wg", "show", m.iface, "dump").CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("wg show dump failed: %s: %w", string(out), err)
 	}
@@ -135,7 +165,7 @@ func (m *Manager) GetConnectedPeers() ([]ConnectedPeer, error) {
 
 // DisconnectPeer removes a peer from the live WireGuard interface.
 func (m *Manager) DisconnectPeer(publicKey string) error {
-	out, err := exec.Command("wg", "set", m.iface, "peer", publicKey, "remove").CombinedOutput()
+	out, err := runCommand("wg", "set", m.iface, "peer", publicKey, "remove").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to remove peer: %s: %w", string(out), err)
 	}
@@ -144,7 +174,7 @@ func (m *Manager) DisconnectPeer(publicKey string) error {
 
 // GetStatus returns the WireGuard interface status string.
 func (m *Manager) GetStatus() (string, error) {
-	out, err := exec.Command("wg", "show", m.iface).CombinedOutput()
+	out, err := runCommand("wg", "show", m.iface).CombinedOutput()
 	if err != nil {
 		return "", nil // Not running
 	}

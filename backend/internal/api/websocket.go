@@ -31,6 +31,10 @@ type WSClient struct {
 	hub  *Hub
 }
 
+type wsAuthMessage struct {
+	Token string `json:"token"`
+}
+
 // Hub manages all WebSocket connections
 type Hub struct {
 	clients    map[*WSClient]bool
@@ -339,6 +343,31 @@ func (h *Handler) ServeWS(c *gin.Context) {
 		log.Printf("websocket upgrade error: %v", err)
 		return
 	}
+
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "authentication required"), time.Now().Add(time.Second))
+		conn.Close()
+		return
+	}
+
+	var authMsg wsAuthMessage
+	if err := json.Unmarshal(msg, &authMsg); err != nil || strings.TrimSpace(authMsg.Token) == "" {
+		conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "invalid authentication message"), time.Now().Add(time.Second))
+		conn.Close()
+		return
+	}
+
+	if _, err := h.authSvc.ValidateToken(strings.TrimSpace(authMsg.Token)); err != nil {
+		conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "invalid or expired token"), time.Now().Add(time.Second))
+		conn.Close()
+		return
+	}
+
+	conn.SetReadDeadline(time.Time{})
+	_ = conn.WriteJSON(gin.H{"type": "ready"})
+
 	client := &WSClient{
 		conn: conn,
 		send: make(chan []byte, 256),

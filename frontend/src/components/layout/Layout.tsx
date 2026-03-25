@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react'
+import { type ReactNode, useRef } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -19,6 +19,7 @@ import { useToast } from '@/context/ToastContext'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import type { WSNotification } from '@/types'
 import { cn } from '@/lib/utils'
+import { useQueryClient } from '@tanstack/react-query'
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -63,12 +64,30 @@ export function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const { addToast } = useToast()
+  const queryClient = useQueryClient()
+  const lastNotificationKeyRef = useRef<string | null>(null)
 
   // Global WebSocket → toast bridge
   useWebSocket({
     onMessage: (data) => {
+      if (data.type === 'connections') {
+        queryClient.invalidateQueries({ queryKey: ['connections'] })
+        return
+      }
+
       if (data.type !== 'notification') return
       const n = data as unknown as WSNotification
+
+      if (n.event === 'server_started' || n.event === 'server_stopped' || n.event === 'server_restarted') {
+        queryClient.invalidateQueries({ queryKey: ['server-status'] })
+        queryClient.invalidateQueries({ queryKey: ['connections'] })
+        return
+      }
+
+      const notificationKey = `${n.event}:${n.timestamp}:${n.title}`
+      if (lastNotificationKeyRef.current === notificationKey) return
+      lastNotificationKeyRef.current = notificationKey
+
       addToast({
         kind: n.kind,
         title: n.title,

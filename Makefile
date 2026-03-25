@@ -75,13 +75,19 @@ dev:
 	@echo "Backend → http://localhost:8080  |  Frontend → http://localhost:5173"
 	@echo ""
 	@trap 'kill 0; scripts/dev-teardown.sh' INT TERM EXIT; \
-	  ( cd backend && air ) & \
+	  ( export WIREGATE_DEV_MODE=1; \
+	    export WIREGATE_WIREGUARD_INTERFACE=wgdev0; \
+	    export WIREGATE_WIREGUARD_CONFIG_DIR="$${XDG_RUNTIME_DIR:-/tmp/wiregate-$${USER:-dev}}/wireguard"; \
+	    cd backend && air ) & \
 	  ( cd frontend && pnpm dev ) & \
 	  wait
 
 ## Run only the backend with air hot-reload (loads .env.dev automatically).
 dev-backend:
 	@scripts/dev-setup.sh
+	export WIREGATE_DEV_MODE=1; \
+	export WIREGATE_WIREGUARD_INTERFACE=wgdev0; \
+	export WIREGATE_WIREGUARD_CONFIG_DIR="$${XDG_RUNTIME_DIR:-/tmp/wiregate-$${USER:-dev}}/wireguard"; \
 	cd backend && air
 
 ## Run only the Vite frontend dev server (proxies /api → :8080).
