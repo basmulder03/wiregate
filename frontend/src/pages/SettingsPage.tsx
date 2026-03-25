@@ -218,6 +218,7 @@ function SecuritySettings() {
 }
 
 
+function ServerSettings() {
   const queryClient = useQueryClient()
   const { data: server, isLoading } = useQuery({
     queryKey: ['server'],
