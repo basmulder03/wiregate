@@ -314,7 +314,11 @@ export function ClientsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => clientsApi.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clients'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
+      setDeletingId(null)
+    },
+    onError: () => setDeletingId(null),
   })
 
   const toggleMutation = useMutation({

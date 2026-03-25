@@ -845,6 +845,7 @@ function UpdatesSettings() {
       queryClient.invalidateQueries({ queryKey: ['update-settings'] })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
+      addToast({ kind: 'success', title: 'Update settings saved', message: 'Automatic update preferences have been updated.' })
     },
     onError: () => addToast({ kind: 'error', title: 'Save failed', message: 'Could not save update settings.' }),
   })
