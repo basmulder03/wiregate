@@ -83,6 +83,12 @@ cd wiregate
 sudo bash scripts/proxmox-create-lxc.sh --ctid 120 --hostname wiregate
 ```
 
+Or use the unified wrapper:
+
+```sh
+sudo bash scripts/proxmox-wiregate.sh create --ctid 120 --hostname wiregate
+```
+
 Useful options:
 
 - `--ip-config dhcp` or `--ip-config 10.0.10.50/24,gw=10.0.10.1`
@@ -95,6 +101,7 @@ After the script finishes, open the reported web UI URL and complete the first-r
 
 Related helpers:
 
+- Unified wrapper: `sudo bash scripts/proxmox-wiregate.sh <create|update|destroy> ...`
 - Update an existing WireGate LXC: `sudo bash scripts/proxmox-update-lxc.sh --ctid 120`
 - Destroy/reset the LXC: `sudo bash scripts/proxmox-destroy-lxc.sh --ctid 120`
 
