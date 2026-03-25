@@ -51,3 +51,11 @@ backend/internal/static/ui/*
 # OS
 .DS_Store
 Thumbs.db
+
+# ── Development environment ───────────────────────────────────────────────────
+# Local dev data (SQLite DB, WireGuard keys/configs for wgdev0)
+.dev-data/
+
+# air hot-reload artifacts
+backend/.air-tmp/
+backend/build-errors.log

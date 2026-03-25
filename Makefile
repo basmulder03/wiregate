@@ -1,9 +1,9 @@
 # WireGate Makefile
-.PHONY: all build backend frontend clean dev release \
-        release-linux-amd64 release-linux-arm64 \
+.PHONY: all build backend frontend clean dev dev-backend dev-frontend dev-setup dev-teardown \
+        release release-linux-amd64 release-linux-arm64 \
         release-darwin-amd64 release-darwin-arm64 \
         release-windows-amd64 \
-        dev-backend dev-frontend tools test fmt docker up down help
+        tools test fmt docker up down help
 
 all: build
 
@@ -66,15 +66,35 @@ release-windows-amd64:
 
 ## ── Development ──────────────────────────────────────────────────────────────
 
-## Run backend in development mode (frontend proxied via Vite HMR)
-dev-backend:
-	cd backend && WIREGATE_SERVER_STATIC_DIR="" go run ./cmd/wiregate
+## Full dev mode: set up wgdev0, then run backend (air) + frontend (Vite) side-by-side.
+## Press Ctrl-C to stop both; the trap will tear down the wgdev0 interface.
+dev: dev-setup
+	@echo ""
+	@echo "Starting backend (air hot-reload) and frontend (Vite HMR) ..."
+	@echo "Backend → http://localhost:8080  |  Frontend → http://localhost:5173"
+	@echo ""
+	@trap 'kill 0; $(MAKE) dev-teardown' INT TERM EXIT; \
+	  ( cd backend && air ) & \
+	  ( cd frontend && pnpm dev ) & \
+	  wait
 
-## Run frontend dev server (proxies /api to localhost:8080)
+## Run only the backend with air hot-reload (loads .env.dev automatically).
+dev-backend: dev-setup
+	cd backend && air
+
+## Run only the Vite frontend dev server (proxies /api → :8080).
 dev-frontend:
 	cd frontend && pnpm dev
 
-## Install Go dev tools (air for hot-reload)
+## Create the wgdev0 WireGuard interface used during local development.
+dev-setup:
+	@scripts/dev-setup.sh
+
+## Tear down the wgdev0 interface created by dev-setup.
+dev-teardown:
+	@scripts/dev-teardown.sh
+
+## Install Go dev tools (air for hot-reload).
 tools:
 	go install github.com/air-verse/air@latest
 
@@ -127,8 +147,11 @@ help:
 	@echo "  release-darwin-arm64   macOS  Apple Silicon"
 	@echo "  release-windows-amd64  Windows x86-64"
 	@echo ""
-	@echo "  dev-backend            Run backend (serves API only, Vite proxies to it)"
-	@echo "  dev-frontend           Run Vite dev server"
+	@echo "  dev                    Full dev mode: wgdev0 + air (backend) + Vite (frontend)"
+	@echo "  dev-backend            Backend only with air hot-reload"
+	@echo "  dev-frontend           Frontend Vite dev server only"
+	@echo "  dev-setup              Create wgdev0 WireGuard interface for local dev"
+	@echo "  dev-teardown           Remove wgdev0 interface"
 	@echo "  test                   Run backend tests"
 	@echo "  docker                 Build Docker image"
 	@echo "  up / down              Start/stop Docker Compose"

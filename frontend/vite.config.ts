@@ -15,11 +15,13 @@ export default defineConfig({
     },
   },
   server: {
+    port: 5173,
+    strictPort: true,   // fail fast if port is already in use
     proxy: {
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
-        ws: true,
+        ws: true,        // also proxies WebSocket (/api/ws)
       },
     },
   },
