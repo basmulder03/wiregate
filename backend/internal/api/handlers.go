@@ -747,11 +747,11 @@ func (h *Handler) GetAuditLogs(c *gin.Context) {
 	}
 
 	if action := strings.TrimSpace(c.Query("action")); action != "" {
-		query = query.Where("action = ?", action)
+		query = query.Where("action LIKE ?", "%"+action+"%")
 	}
 
 	if username := strings.TrimSpace(c.Query("username")); username != "" {
-		query = query.Where("username = ?", username)
+		query = query.Where("username LIKE ?", "%"+username+"%")
 	}
 
 	if status := strings.TrimSpace(c.Query("status")); status != "" {

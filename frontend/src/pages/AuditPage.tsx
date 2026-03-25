@@ -1,17 +1,15 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { auditApi } from '@/api'
-import { Badge, cn } from '@/lib/utils'
+import { Badge } from '@/lib/utils'
 import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
-  CheckCircle2,
   ClipboardList,
   Filter,
   Loader2,
   Search,
-  ShieldAlert,
   User,
   X,
 } from 'lucide-react'
@@ -24,34 +22,6 @@ const PAGE_SIZES = [10, 25, 50, 100]
 
 function formatTimestamp(value: string) {
   return new Date(value).toLocaleString()
-}
-
-function StatCard({
-  label,
-  value,
-  icon: Icon,
-  tone,
-}: {
-  label: string
-  value: number
-  icon: typeof CheckCircle2
-  tone: 'neutral' | 'success' | 'danger'
-}) {
-  const tones = {
-    neutral: 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300',
-    success: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300',
-    danger: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300',
-  }
-
-  return (
-    <div className={cn('rounded-xl border p-4', tones[tone])}>
-      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide opacity-80">
-        <Icon className="w-4 h-4" />
-        {label}
-      </div>
-      <div className="mt-2 text-2xl font-semibold">{value}</div>
-    </div>
-  )
 }
 
 export function AuditPage() {
@@ -85,8 +55,6 @@ export function AuditPage() {
   const logs = data?.items ?? []
   const total = data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const successCount = logs.filter((log) => log.success).length
-  const failedCount = logs.length - successCount
 
   const updateSort = (field: SortField) => {
     setPage(1)
@@ -117,51 +85,45 @@ export function AuditPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Audit Log</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">System activity, access history, and administrative changes</p>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Visible Page" value={logs.length} icon={ClipboardList} tone="neutral" />
-        <StatCard label="Successful" value={successCount} icon={CheckCircle2} tone="success" />
-        <StatCard label="Failed" value={failedCount} icon={ShieldAlert} tone="danger" />
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Search and review system activity without leaving the latest events view.</p>
       </div>
 
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
           <ClipboardList className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-          <span className="font-medium text-gray-900 dark:text-gray-100">Audit Explorer</span>
-          <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
-            {total} matching events
+          <span className="font-medium text-gray-900 dark:text-gray-100">Events</span>
+          <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">
+            {total} matches
             {isFetching && !isLoading ? ' • refreshing' : ''}
           </span>
         </div>
 
-        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 space-y-4 bg-gray-50/60 dark:bg-gray-950/40">
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr),repeat(3,minmax(0,1fr)),auto] gap-3">
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/40 dark:bg-gray-950/20 space-y-3">
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.6fr),160px,180px,180px,auto] gap-3">
             <form
               onSubmit={(e) => {
                 e.preventDefault()
                 setPage(1)
                 setQuery(searchInput.trim())
               }}
-              className="relative block"
+              className="relative"
             >
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search user, action, resource, details, or IP"
-                className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Search events"
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </form>
 
             <select
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); setPage(1) }}
-              className="px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All statuses</option>
               <option value="success">Success</option>
@@ -171,20 +133,20 @@ export function AuditPage() {
             <input
               value={actionFilter}
               onChange={(e) => { setActionFilter(e.target.value); setPage(1) }}
-              placeholder="Filter by action"
-              className="px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Action contains..."
+              className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
 
             <input
               value={userFilter}
               onChange={(e) => { setUserFilter(e.target.value); setPage(1) }}
-              placeholder="Filter by user"
-              className="px-3 py-2.5 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="User contains..."
+              className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
 
             <button
               onClick={resetFilters}
-              className="inline-flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
               <X className="w-4 h-4" />
               Reset
@@ -193,6 +155,8 @@ export function AuditPage() {
 
           <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             <Filter className="w-3.5 h-3.5" />
+            <span>{logs.length} visible on this page</span>
+            <span className="text-gray-300 dark:text-gray-600">•</span>
             <span>Sorted by {sortField.replace('_', ' ')} ({sortDirection})</span>
             <span className="text-gray-300 dark:text-gray-600">•</span>
             <span>Page {page} of {totalPages}</span>
