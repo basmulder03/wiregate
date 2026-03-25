@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { serverApi } from '@/api'
 import { clientsApi } from '@/api'
 import { connectionsApi } from '@/api'
@@ -45,6 +46,16 @@ export function DashboardPage() {
     queryKey: ['connections'],
     queryFn: () => connectionsApi.list().then((r) => r.data),
   })
+
+  const clientNameByPublicKey = useMemo(() => {
+    const lookup = new Map<string, string>()
+    for (const client of clients ?? []) {
+      if (client.public_key) {
+        lookup.set(client.public_key.toLowerCase(), client.name)
+      }
+    }
+    return lookup
+  }, [clients])
 
   const refreshServerState = async () => {
     await queryClient.invalidateQueries({ queryKey: ['server-status'] })
@@ -216,7 +227,7 @@ export function DashboardPage() {
                   <tr key={peer.PublicKey} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                     <td className="px-5 py-3">
                       <div className="font-medium text-gray-900 dark:text-white">
-                        {peer.client_name || 'Unknown'}
+                        {peer.client_name || clientNameByPublicKey.get(peer.PublicKey.toLowerCase()) || 'Unknown'}
                       </div>
                       <div className="text-xs text-gray-400 dark:text-gray-500 font-mono">
                         {peer.PublicKey.slice(0, 12)}...

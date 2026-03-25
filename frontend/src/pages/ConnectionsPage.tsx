@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { connectionsApi } from '@/api'
+import { clientsApi, connectionsApi } from '@/api'
 import { formatBytes, formatHandshake, truncateKey } from '@/lib/utils'
 import { Activity, Wifi, UserX, Loader2, RefreshCw, Check, X } from 'lucide-react'
 
@@ -12,6 +12,21 @@ export function ConnectionsPage() {
     queryKey: ['connections'],
     queryFn: () => connectionsApi.list().then((r) => r.data),
   })
+
+  const { data: clients } = useQuery({
+    queryKey: ['clients'],
+    queryFn: () => clientsApi.list().then((r) => r.data),
+  })
+
+  const clientNameByPublicKey = useMemo(() => {
+    const lookup = new Map<string, string>()
+    for (const client of clients ?? []) {
+      if (client.public_key) {
+        lookup.set(client.public_key.toLowerCase(), client.name)
+      }
+    }
+    return lookup
+  }, [clients])
 
   const disconnectMutation = useMutation({
     mutationFn: (pubkey: string) => connectionsApi.disconnect(pubkey),
@@ -96,7 +111,7 @@ export function ConnectionsPage() {
                         <span className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
                         <div>
                           <div className="font-medium text-gray-900 dark:text-white">
-                            {peer.client_name || 'Unknown peer'}
+                            {peer.client_name || clientNameByPublicKey.get(peer.PublicKey.toLowerCase()) || 'Unknown peer'}
                           </div>
                           <div className="text-xs text-gray-400 dark:text-gray-500 font-mono mt-0.5">
                             {truncateKey(peer.PublicKey)}
