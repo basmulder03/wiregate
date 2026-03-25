@@ -93,6 +93,11 @@ Useful options:
 
 After the script finishes, open the reported web UI URL and complete the first-run setup.
 
+Related helpers:
+
+- Update an existing WireGate LXC: `sudo bash scripts/proxmox-update-lxc.sh --ctid 120`
+- Destroy/reset the LXC: `sudo bash scripts/proxmox-destroy-lxc.sh --ctid 120`
+
 ### Bare-metal — Windows
 
 Run in PowerShell **as Administrator**:

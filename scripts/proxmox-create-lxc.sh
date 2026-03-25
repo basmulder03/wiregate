@@ -247,4 +247,7 @@ printf '\n'
 printf '  Notes:\n'
 printf '  - The container uses bridged networking on %s.\n' "$BRIDGE"
 printf '  - Expose/forward UDP 51820 (or your chosen WireGuard port) to the container IP as needed.\n'
+printf '  - If the Proxmox firewall is enabled, allow TCP %s to the container and UDP 51820 to the WireGuard interface.\n' "$WIREGATE_PORT"
+printf '  - If your LXC sits behind NAT, forward TCP %s and your chosen WireGuard UDP port from the edge router to %s.\n' "$WIREGATE_PORT" "${CONTAINER_IP:-<container-ip>}"
+printf '  - On Proxmox, bridged mode is usually simplest for WireGuard so clients can reach the container directly.\n'
 printf '  - Complete first-run setup in the web UI after opening the URL above.\n'
