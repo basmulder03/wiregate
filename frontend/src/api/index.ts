@@ -61,6 +61,7 @@ export const clientsApi = {
   update: (id: number, data: Partial<Client>) => api.put<Client>(`/clients/${id}`, data),
   delete: (id: number) => api.delete(`/clients/${id}`),
   getConfig: (id: number) => api.get<{ config: string; filename: string }>(`/clients/${id}/config`),
+  getQR: (id: number) => api.get<Blob>(`/clients/${id}/qr`, { responseType: 'blob' }),
 }
 
 // Connections

@@ -106,11 +106,35 @@ function AddClientModal({ onClose, onCreated }: { onClose: () => void; onCreated
 
 function ClientConfigModal({ client, onClose }: { client: Client; onClose: () => void }) {
   const [copied, setCopied] = useState(false)
+  const [tab, setTab] = useState<'config' | 'qr'>('config')
+  const [qrUrl, setQrUrl] = useState<string | null>(null)
+  const [qrLoading, setQrLoading] = useState(false)
+  const [qrError, setQrError] = useState('')
 
   const { data, isLoading } = useQuery({
     queryKey: ['client-config', client.id],
     queryFn: () => clientsApi.getConfig(client.id).then((r) => r.data),
   })
+
+  const loadQR = async () => {
+    if (qrUrl) return // already loaded
+    setQrLoading(true)
+    setQrError('')
+    try {
+      const res = await clientsApi.getQR(client.id)
+      const url = URL.createObjectURL(res.data)
+      setQrUrl(url)
+    } catch {
+      setQrError('Failed to load QR code')
+    } finally {
+      setQrLoading(false)
+    }
+  }
+
+  const handleTabChange = (next: 'config' | 'qr') => {
+    setTab(next)
+    if (next === 'qr') loadQR()
+  }
 
   const handleCopy = () => {
     if (data?.config) {
@@ -135,39 +159,91 @@ function ClientConfigModal({ client, onClose }: { client: Client; onClose: () =>
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
+        {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <div>
             <h2 className="font-semibold text-gray-900">{client.name}</h2>
             <p className="text-xs text-gray-500 mt-0.5">Client configuration</p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleCopy}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
-            <button
-              onClick={handleDownload}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Download
-            </button>
-          </div>
-        </div>
-        <div className="p-6">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+          {tab === 'config' && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleCopy}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+              <button
+                onClick={handleDownload}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Download
+              </button>
             </div>
-          ) : (
-            <pre className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-xs font-mono text-gray-800 overflow-x-auto whitespace-pre-wrap">
-              {data?.config || 'Server endpoint not configured. Set the public endpoint in Settings.'}
-            </pre>
           )}
         </div>
+
+        {/* Tab switcher */}
+        <div className="flex border-b border-gray-200 px-6">
+          <button
+            onClick={() => handleTabChange('config')}
+            className={`py-2.5 px-1 mr-6 text-sm font-medium border-b-2 transition-colors ${
+              tab === 'config'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Config file
+          </button>
+          <button
+            onClick={() => handleTabChange('qr')}
+            className={`py-2.5 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+              tab === 'qr'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <QrCode className="w-3.5 h-3.5" />
+            QR Code
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          {tab === 'config' ? (
+            isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            ) : (
+              <pre className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-xs font-mono text-gray-800 overflow-x-auto whitespace-pre-wrap">
+                {data?.config || 'Server endpoint not configured. Set the public endpoint in Settings.'}
+              </pre>
+            )
+          ) : (
+            <div className="flex flex-col items-center justify-center py-4">
+              {qrLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                </div>
+              ) : qrError ? (
+                <p className="text-sm text-red-600 bg-red-50 px-4 py-3 rounded-lg">{qrError}</p>
+              ) : qrUrl ? (
+                <>
+                  <img
+                    src={qrUrl}
+                    alt={`QR code for ${client.name}`}
+                    className="w-56 h-56 rounded-lg border border-gray-200"
+                  />
+                  <p className="text-xs text-gray-400 mt-3">Scan with the WireGuard mobile app</p>
+                </>
+              ) : null}
+            </div>
+          )}
+        </div>
+
         <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
           <button
             onClick={onClose}

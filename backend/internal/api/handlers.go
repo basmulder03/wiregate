@@ -8,6 +8,7 @@ import (
 	"github.com/basmulder03/wiregate/internal/models"
 	"github.com/basmulder03/wiregate/internal/wireguard"
 	"github.com/gin-gonic/gin"
+	qrcode "github.com/skip2/go-qrcode"
 	"gorm.io/gorm"
 )
 
@@ -534,6 +535,56 @@ func (h *Handler) GetClientConfig(c *gin.Context) {
 		"config":   configStr,
 		"filename": client.Name + ".conf",
 	})
+}
+
+// GetClientQR returns a QR code PNG for the client's WireGuard config
+// GET /api/clients/:id/qr
+func (h *Handler) GetClientQR(c *gin.Context) {
+	id := c.Param("id")
+	var client models.Client
+	if err := h.db.First(&client, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "client not found"})
+		return
+	}
+
+	var server models.WireGuardServer
+	if err := h.db.First(&server).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "server not configured"})
+		return
+	}
+
+	serverEndpoint := client.Endpoint
+	if serverEndpoint == "" {
+		var setting models.SystemSettings
+		if h.db.Where("key = ?", "server_public_endpoint").First(&setting).Error == nil {
+			serverEndpoint = setting.Value
+		}
+	}
+
+	conf := &wireguard.ClientConf{
+		PrivateKey:      client.PrivateKey,
+		Address:         client.AllowedIPs,
+		DNS:             client.DNS,
+		MTU:             client.MTU,
+		ServerPublicKey: server.PublicKey,
+		PresharedKey:    client.PresharedKey,
+		AllowedIPs:      "0.0.0.0/0, ::/0",
+		Endpoint:        serverEndpoint,
+	}
+
+	configStr, err := wireguard.GenerateClientConfig(conf)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	png, err := qrcode.Encode(configStr, qrcode.Medium, 256)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate QR code"})
+		return
+	}
+
+	c.Data(http.StatusOK, "image/png", png)
 }
 
 // --- Connection Handlers ---

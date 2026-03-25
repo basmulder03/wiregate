@@ -77,6 +77,7 @@ func SetupRouter(handler *Handler, authSvc *auth.Service, allowedOrigins []strin
 			clients.PUT("/:id", middleware.RequireAdmin(), handler.UpdateClient)
 			clients.DELETE("/:id", middleware.RequireAdmin(), handler.DeleteClient)
 			clients.GET("/:id/config", handler.GetClientConfig)
+			clients.GET("/:id/qr", handler.GetClientQR)
 		}
 
 		// Live connections
@@ -101,10 +102,28 @@ func SetupRouter(handler *Handler, authSvc *auth.Service, allowedOrigins []strin
 	// Serve frontend SPA from staticDir (if it exists)
 	if staticDir != "" {
 		if _, err := os.Stat(staticDir); err == nil {
-			// Serve static assets (JS, CSS, images, etc.)
+			// Serve /assets/** (hashed JS/CSS bundles)
 			router.Static("/assets", filepath.Join(staticDir, "assets"))
 
-			// SPA fallback: any non-API route serves index.html
+			// Serve root-level static files (favicon, icons, manifest, etc.)
+			// Only serves if the file actually exists on disk; otherwise falls through to NoRoute.
+			router.GET("/:file", func(c *gin.Context) {
+				file := c.Param("file")
+				fullPath := filepath.Join(staticDir, filepath.Base(file))
+				if info, err := os.Stat(fullPath); err == nil && !info.IsDir() {
+					c.File(fullPath)
+					return
+				}
+				// Fall through to SPA index for client-side routes (e.g. /setup, /clients)
+				indexPath := filepath.Join(staticDir, "index.html")
+				if _, err := os.Stat(indexPath); err == nil {
+					c.File(indexPath)
+				} else {
+					c.Status(http.StatusNotFound)
+				}
+			})
+
+			// SPA fallback: multi-segment paths that don't match files → index.html
 			router.NoRoute(func(c *gin.Context) {
 				indexPath := filepath.Join(staticDir, "index.html")
 				if _, err := os.Stat(indexPath); err == nil {
