@@ -266,17 +266,34 @@ func (h *Handler) UpdateServerConfig(c *gin.Context) {
 
 	var server models.WireGuardServer
 	if err := h.db.First(&server).Error; err != nil {
-		// Create new server config
+		// First-time creation: auto-generate a keypair if none was provided.
+		if req.PrivateKey == "" {
+			priv, pub, kerr := wireguard.GenerateKeyPair()
+			if kerr != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate WireGuard keys: " + kerr.Error()})
+				return
+			}
+			req.PrivateKey = priv
+			req.PublicKey = pub
+		}
 		if err := h.db.Create(&req).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+		// Write config file immediately so the interface can be started right away.
+		h.applyServerConfig(&req)
 		c.JSON(http.StatusCreated, req)
 		return
 	}
 
-	// Update existing
+	// Update existing — regenerate keys only if the caller explicitly cleared them.
+	if req.PrivateKey == "" && server.PrivateKey != "" {
+		req.PrivateKey = server.PrivateKey
+		req.PublicKey = server.PublicKey
+	}
 	h.db.Model(&server).Updates(&req)
+	// Reload server after update so applyServerConfig uses fresh data.
+	h.db.First(&server)
 	h.applyServerConfig(&server)
 	c.JSON(http.StatusOK, server)
 }
@@ -1045,21 +1062,10 @@ func (h *Handler) enforceExpiry() {
 }
 
 func splitCIDR(cidr string) []string {
-	// Returns [ip, prefix]
-	parts := make([]string, 2)
-	slash := -1
-	for i, c := range cidr {
-		if c == '/' {
-			slash = i
-			break
-		}
-	}
-	if slash == -1 {
-		parts[0] = cidr
-		parts[1] = "24"
+	// Returns [ip, prefix]. Uses the stdlib to be correct with edge cases.
+	parts := strings.SplitN(cidr, "/", 2)
+	if len(parts) == 2 {
 		return parts
 	}
-	parts[0] = cidr[:slash]
-	parts[1] = cidr[slash+1:]
-	return parts
+	return []string{cidr, "24"}
 }

@@ -196,6 +196,17 @@ if [[ "$OS" == "darwin" ]]; then
     read -r PORT
     PORT="${PORT:-8080}"
 
+    ask "WireGuard interface name [wg0]:"
+    read -r WG_IFACE
+    WG_IFACE="${WG_IFACE:-wg0}"
+
+    # Generate a stable JWT secret so sessions survive restarts.
+    if has openssl; then
+      JWT_SECRET="$(openssl rand -hex 32)"
+    else
+      JWT_SECRET="$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 64)"
+    fi
+
     cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -206,8 +217,10 @@ if [[ "$OS" == "darwin" ]]; then
   <key>ProgramArguments</key>  <array><string>${INSTALL_DIR}/wiregate</string></array>
   <key>EnvironmentVariables</key>
   <dict>
-    <key>WIREGATE_SERVER_PORT</key>   <string>${PORT}</string>
-    <key>WIREGATE_DATABASE_DSN</key>  <string>${DATA_DIR}/wiregate.db</string>
+    <key>WIREGATE_SERVER_PORT</key>          <string>${PORT}</string>
+    <key>WIREGATE_DATABASE_DSN</key>         <string>${DATA_DIR}/wiregate.db</string>
+    <key>WIREGATE_WIREGUARD_INTERFACE</key>  <string>${WG_IFACE}</string>
+    <key>WIREGATE_SERVER_JWT_SECRET</key>    <string>${JWT_SECRET}</string>
   </dict>
   <key>RunAtLoad</key>         <true/>
   <key>KeepAlive</key>         <true/>

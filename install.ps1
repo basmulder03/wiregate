@@ -130,7 +130,7 @@ if ($isAdmin) {
       sc.exe delete $svcName | Out-Null
     }
 
-    # Use NSSM if available, otherwise sc.exe
+    # Use NSSM if available, otherwise sc.exe + registry env vars
     if (Get-Command 'nssm' -ErrorAction SilentlyContinue) {
       Write-Info "Registering service via NSSM..."
       nssm install $svcName $binaryDest
@@ -142,11 +142,22 @@ if ($isAdmin) {
       nssm start $svcName
     } else {
       Write-Info "Registering service via sc.exe..."
-      $binPath = "`"$binaryDest`" --env WIREGATE_SERVER_PORT=$port"
-      sc.exe create $svcName binPath= $binPath start= auto | Out-Null
+      sc.exe create $svcName binPath= "`"$binaryDest`"" start= auto | Out-Null
+
+      # Inject all four environment variables into the service's registry key.
+      # Windows services read HKLM:\SYSTEM\CurrentControlSet\Services\<name>\Environment.
+      $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$svcName\Environment"
+      New-Item -Path $regPath -Force | Out-Null
+      $envVars = @(
+        "WIREGATE_SERVER_PORT=$port",
+        "WIREGATE_WIREGUARD_INTERFACE=$iface",
+        "WIREGATE_DATABASE_DSN=$dataDir\wiregate.db",
+        "WIREGATE_SERVER_JWT_SECRET=$jwtSecret"
+      )
+      Set-ItemProperty -Path $regPath -Name '(Default)' -Value $envVars -Type MultiString
+
       sc.exe start $svcName | Out-Null
-      Write-Warn "Note: environment variables must be set in the registry for this service."
-      Write-Warn "Consider installing NSSM (https://nssm.cc) for better service management."
+      Write-Info "Environment variables written to service registry key: $regPath"
     }
 
     Write-Success "Service '$svcName' started. Access WireGate at http://localhost:$port"

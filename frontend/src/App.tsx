@@ -48,11 +48,39 @@ function SetupGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+// Redirects away from /setup once setup is no longer required.
+// If the user is already authenticated or setup is complete, send them to /.
+function SetupPageGuard({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth()
+
+  const { data: status, isLoading } = useQuery({
+    queryKey: ['setup-status'],
+    queryFn: () => setupApi.status().then((r) => r.data),
+    staleTime: 0,
+  })
+
+  if (isLoading) return null
+
+  // Already logged in, or setup was already completed — no reason to be here.
+  if (isAuthenticated || (status && !status.setup_required)) {
+    return <Navigate to="/" replace />
+  }
+
+  return <>{children}</>
+}
+
 function AppRoutes() {
   return (
     <Routes>
-      {/* Setup wizard — accessible only when setup is needed */}
-      <Route path="/setup" element={<SetupPage />} />
+      {/* Setup wizard — only accessible when setup has not been completed yet */}
+      <Route
+        path="/setup"
+        element={
+          <SetupPageGuard>
+            <SetupPage />
+          </SetupPageGuard>
+        }
+      />
 
       {/* Login */}
       <Route

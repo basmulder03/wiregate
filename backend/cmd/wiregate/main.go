@@ -13,6 +13,15 @@ import (
 	"github.com/basmulder03/wiregate/internal/wireguard"
 )
 
+// Populated at link time by goreleaser / Makefile ldflags:
+//
+//	-X main.version=v1.2.3 -X main.commit=abc1234 -X main.date=2025-01-01
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -69,7 +78,7 @@ func main() {
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 
-	log.Printf("WireGate starting on http://%s", addr)
+	log.Printf("WireGate %s (%s, built %s) starting on http://%s", version, commit, date, addr)
 	log.Printf("Database: %s (%s)", cfg.Database.Driver, cfg.Database.DSN)
 	log.Printf("WireGuard interface: %s", cfg.WireGuard.Interface)
 
