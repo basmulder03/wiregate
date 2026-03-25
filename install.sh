@@ -18,6 +18,33 @@ warn()    { echo -e "${YELLOW}[wiregate]${RESET} $*"; }
 error()   { echo -e "${RED}[wiregate] ERROR:${RESET} $*" >&2; exit 1; }
 ask()     { echo -en "${BOLD}$* ${RESET}"; }
 
+PROMPT_TTY=""
+if [[ -r /dev/tty && -w /dev/tty ]]; then
+  PROMPT_TTY="/dev/tty"
+fi
+
+prompt_default() {
+  local label="$1" default="$2" answer=""
+  if [[ -n "$PROMPT_TTY" ]]; then
+    printf "${BOLD}%s [%s]: ${RESET}" "$label" "$default" > "$PROMPT_TTY"
+    IFS= read -r answer < "$PROMPT_TTY" || true
+  else
+    warn "No interactive TTY detected; using default for '${label}': ${default}"
+  fi
+  printf '%s' "${answer:-$default}"
+}
+
+prompt_yn() {
+  local label="$1" default="$2" answer=""
+  if [[ -n "$PROMPT_TTY" ]]; then
+    printf "${BOLD}%s [%s]: ${RESET}" "$label" "$default" > "$PROMPT_TTY"
+    IFS= read -r answer < "$PROMPT_TTY" || true
+  else
+    warn "No interactive TTY detected; using default for '${label}': ${default}"
+  fi
+  printf '%s' "${answer:-$default}"
+}
+
 # ── Platform detection ───────────────────────────────────────────────────────
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
 ARCH="$(uname -m)"
@@ -73,9 +100,7 @@ VERSION="$(latest_version)"
 [[ -n "$VERSION" ]] || error "Could not determine latest version. Check https://github.com/${REPO}/releases"
 info "Latest version: ${BOLD}${VERSION}${RESET}"
 
-ask "Install version [${VERSION}]:"
-read -r VERSION_INPUT
-VERSION_INPUT="${VERSION_INPUT:-$VERSION}"
+VERSION_INPUT="$(prompt_default "Install version" "$VERSION")"
 [[ "$VERSION_INPUT" == v* ]] || VERSION_INPUT="v${VERSION_INPUT}"
 
 # ── Install directory ────────────────────────────────────────────────────────
@@ -84,9 +109,7 @@ if [[ "$OS" == "darwin" ]] || [[ "$(id -u)" -ne 0 ]]; then
   DEFAULT_DIR="$HOME/.local/bin"
 fi
 
-ask "Install directory [${DEFAULT_DIR}]:"
-read -r INSTALL_DIR_INPUT
-INSTALL_DIR="${INSTALL_DIR_INPUT:-$DEFAULT_DIR}"
+INSTALL_DIR="$(prompt_default "Install directory" "$DEFAULT_DIR")"
 mkdir -p "$INSTALL_DIR"
 
 # ── Download ─────────────────────────────────────────────────────────────────
@@ -114,9 +137,7 @@ fi
 # ── WireGuard installation ───────────────────────────────────────────────────
 if ! command -v wg &>/dev/null; then
   echo ""
-  ask "WireGuard tools not found. Install them now? [Y/n]:"
-  read -r INSTALL_WG
-  INSTALL_WG="${INSTALL_WG:-Y}"
+  INSTALL_WG="$(prompt_yn "WireGuard tools not found. Install them now?" "Y")"
   if [[ "$INSTALL_WG" =~ ^[Yy]$ ]]; then
     info "Installing WireGuard…"
     if [[ "$OS" == "darwin" ]]; then
@@ -140,20 +161,14 @@ fi
 # ── Systemd service (Linux only) ─────────────────────────────────────────────
 if [[ "$OS" == "linux" ]] && has systemctl && [[ "$(id -u)" -eq 0 ]]; then
   echo ""
-  ask "Install and enable the WireGate systemd service? [Y/n]:"
-  read -r INSTALL_SVC
-  INSTALL_SVC="${INSTALL_SVC:-Y}"
+  INSTALL_SVC="$(prompt_yn "Install and enable the WireGate systemd service?" "Y")"
   if [[ "$INSTALL_SVC" =~ ^[Yy]$ ]]; then
     DATA_DIR="/var/lib/wiregate"
     mkdir -p "$DATA_DIR"
 
-    ask "Port to listen on [8080]:"
-    read -r PORT
-    PORT="${PORT:-8080}"
+    PORT="$(prompt_default "Port to listen on" "8080")"
 
-    ask "WireGuard interface name [wg0]:"
-    read -r WG_IFACE
-    WG_IFACE="${WG_IFACE:-wg0}"
+    WG_IFACE="$(prompt_default "WireGuard interface name" "wg0")"
 
     info "Writing /etc/systemd/system/wiregate.service…"
     cat > /etc/systemd/system/wiregate.service <<EOF
@@ -183,22 +198,16 @@ fi
 # ── macOS LaunchAgent ─────────────────────────────────────────────────────────
 if [[ "$OS" == "darwin" ]]; then
   echo ""
-  ask "Install a launchd agent to start WireGate on login? [Y/n]:"
-  read -r INSTALL_AGENT
-  INSTALL_AGENT="${INSTALL_AGENT:-Y}"
+  INSTALL_AGENT="$(prompt_yn "Install a launchd agent to start WireGate on login?" "Y")"
   if [[ "$INSTALL_AGENT" =~ ^[Yy]$ ]]; then
     PLIST_DIR="$HOME/Library/LaunchAgents"
     PLIST="${PLIST_DIR}/io.wiregate.server.plist"
     DATA_DIR="$HOME/Library/Application Support/wiregate"
     mkdir -p "$PLIST_DIR" "$DATA_DIR"
 
-    ask "Port to listen on [8080]:"
-    read -r PORT
-    PORT="${PORT:-8080}"
+    PORT="$(prompt_default "Port to listen on" "8080")"
 
-    ask "WireGuard interface name [wg0]:"
-    read -r WG_IFACE
-    WG_IFACE="${WG_IFACE:-wg0}"
+    WG_IFACE="$(prompt_default "WireGuard interface name" "wg0")"
 
     # Generate a stable JWT secret so sessions survive restarts.
     if has openssl; then
