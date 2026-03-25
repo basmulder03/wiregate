@@ -20,6 +20,7 @@ function AddClientModal({ onClose, onCreated }: { onClose: () => void; onCreated
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [dns, setDns] = useState('1.1.1.1, 1.0.0.1')
+  const [expiresAt, setExpiresAt] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -28,7 +29,12 @@ function AddClientModal({ onClose, onCreated }: { onClose: () => void; onCreated
     setError('')
     setLoading(true)
     try {
-      await clientsApi.create({ name, description, dns })
+      await clientsApi.create({
+        name,
+        description,
+        dns,
+        ...(expiresAt ? { expires_at: new Date(expiresAt).toISOString() } : {}),
+      })
       onCreated()
       onClose()
     } catch (err: unknown) {
@@ -77,6 +83,16 @@ function AddClientModal({ onClose, onCreated }: { onClose: () => void; onCreated
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="1.1.1.1"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Expires (optional)</label>
+            <input
+              type="date"
+              value={expiresAt}
+              onChange={(e) => setExpiresAt(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-400 mt-1">Leave blank for no expiry</p>
           </div>
           {error && (
             <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
@@ -257,6 +273,36 @@ function ClientConfigModal({ client, onClose }: { client: Client; onClose: () =>
   )
 }
 
+function ExpiryBadge({ expiresAt }: { expiresAt: string | null }) {
+  if (!expiresAt) {
+    return <span className="text-xs text-gray-400">Never</span>
+  }
+  const expiry = new Date(expiresAt)
+  const now = new Date()
+  const diffMs = expiry.getTime() - now.getTime()
+  const diffDays = diffMs / (1000 * 60 * 60 * 24)
+
+  if (diffMs < 0) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
+        Expired
+      </span>
+    )
+  }
+  if (diffDays <= 7) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700">
+        {expiry.toLocaleDateString()}
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
+      {expiry.toLocaleDateString()}
+    </span>
+  )
+}
+
 export function ClientsPage() {
   const queryClient = useQueryClient()
   const [showAdd, setShowAdd] = useState(false)
@@ -320,6 +366,7 @@ export function ClientsPage() {
                   <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">IP Address</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Public Key</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Expires</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
@@ -342,6 +389,9 @@ export function ClientsPage() {
                       <Badge variant={client.enabled ? 'success' : 'secondary'}>
                         {client.enabled ? 'Enabled' : 'Disabled'}
                       </Badge>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <ExpiryBadge expiresAt={client.expires_at} />
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center justify-end gap-1.5">

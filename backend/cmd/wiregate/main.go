@@ -48,6 +48,7 @@ func main() {
 
 	// API handler + router
 	handler := api.NewHandler(gormDB, authSvc, wgMgr, hub)
+	handler.StartExpiryEnforcer()
 	router := api.SetupRouter(handler, authSvc, cfg.Server.AllowedOrigins, cfg.Server.StaticDir)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)

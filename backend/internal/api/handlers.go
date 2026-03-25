@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -971,7 +972,8 @@ func sanitizeUser(u *models.User) gin.H {
 // applyServerConfig writes the WireGuard config and reloads if running
 func (h *Handler) applyServerConfig(server *models.WireGuardServer) {
 	var clients []models.Client
-	h.db.Where("server_id = ? AND enabled = ?", server.ID, true).Find(&clients)
+	now := time.Now()
+	h.db.Where("server_id = ? AND enabled = ? AND (expires_at IS NULL OR expires_at > ?)", server.ID, true, now).Find(&clients)
 
 	var peers []wireguard.PeerConf
 	for _, c := range clients {
@@ -998,6 +1000,48 @@ func (h *Handler) applyServerConfig(server *models.WireGuardServer) {
 	if h.wgMgr.IsRunning() {
 		h.wgMgr.Reload(conf)
 	}
+}
+
+// StartExpiryEnforcer launches a background goroutine that ticks every minute,
+// finds clients whose expires_at has passed and are still enabled, disconnects
+// them from WireGuard, and regenerates the server config.
+func (h *Handler) StartExpiryEnforcer() {
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			h.enforceExpiry()
+		}
+	}()
+}
+
+func (h *Handler) enforceExpiry() {
+	var server models.WireGuardServer
+	if err := h.db.First(&server).Error; err != nil {
+		return // no server configured yet
+	}
+
+	var expired []models.Client
+	now := time.Now()
+	h.db.Where(
+		"server_id = ? AND enabled = ? AND expires_at IS NOT NULL AND expires_at <= ?",
+		server.ID, true, now,
+	).Find(&expired)
+
+	if len(expired) == 0 {
+		return
+	}
+
+	for _, client := range expired {
+		if err := h.wgMgr.DisconnectPeer(client.PublicKey); err != nil {
+			log.Printf("expiry enforcer: failed to disconnect peer %s: %v", client.PublicKey, err)
+		}
+		// Mark disabled so we don't keep trying
+		h.db.Model(&client).Update("enabled", false)
+		log.Printf("expiry enforcer: disabled expired client %q (id=%d)", client.Name, client.ID)
+	}
+
+	h.applyServerConfig(&server)
 }
 
 func splitCIDR(cidr string) []string {
