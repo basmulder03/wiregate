@@ -31,7 +31,8 @@ prompt_default() {
   else
     warn "No interactive TTY detected; using default for '${label}': ${default}"
   fi
-  printf '%s' "${answer:-$default}"
+  answer="$(trim "${answer:-$default}")"
+  printf '%s' "$answer"
 }
 
 prompt_yn() {
@@ -42,7 +43,8 @@ prompt_yn() {
   else
     warn "No interactive TTY detected; using default for '${label}': ${default}"
   fi
-  printf '%s' "${answer:-$default}"
+  answer="$(trim "${answer:-$default}")"
+  printf '%s' "$answer"
 }
 
 # ── Platform detection ───────────────────────────────────────────────────────
@@ -58,6 +60,13 @@ esac
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 has() { command -v "$1" &>/dev/null; }
+
+trim() {
+  local value="$1"
+  value="${value//$'\r'/}"
+  value="$(printf '%s' "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+  printf '%s' "$value"
+}
 
 require_tool() {
   has curl || has wget || error "curl or wget is required to download WireGate."
@@ -99,7 +108,7 @@ require_tool
 
 # ── Version selection ────────────────────────────────────────────────────────
 info "Fetching latest release…"
-VERSION="$(latest_version)"
+VERSION="$(trim "$(latest_version)")"
 [[ -n "$VERSION" ]] || error "Could not determine latest version. Check https://github.com/${REPO}/releases"
 info "Latest version: ${BOLD}${VERSION}${RESET}"
 
@@ -131,7 +140,7 @@ trap 'rm -rf "$TMP"' EXIT
 
 info "Downloading ${ARCHIVE}…"
 if ! download "$URL" "${TMP}/${ARCHIVE}"; then
-  warn "Primary tag '${VERSION_TAG}' not found, retrying with '${ALT_VERSION_TAG}'…"
+  warn "Primary download failed (${URL}), retrying with '${ALT_VERSION_TAG}'…"
   download "$ALT_URL" "${TMP}/${ARCHIVE}" || error "Could not download ${ARCHIVE} from tag '${VERSION_TAG}' or '${ALT_VERSION_TAG}'"
 fi
 
