@@ -6,9 +6,18 @@ import (
 	"gorm.io/gorm"
 )
 
+// Base replaces gorm.Model with explicit snake_case JSON tags so all
+// embedded structs serialise consistently (id, created_at, updated_at).
+type Base struct {
+	ID        uint           `gorm:"primarykey"            json:"id"`
+	CreatedAt time.Time      `                             json:"created_at"`
+	UpdatedAt time.Time      `                             json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index"                 json:"-"`
+}
+
 // User represents an admin user of WireGate
 type User struct {
-	gorm.Model
+	Base
 	Username     string     `gorm:"uniqueIndex;not null" json:"username"`
 	Email        string     `gorm:"uniqueIndex" json:"email"`
 	PasswordHash string     `gorm:"not null" json:"-"`
@@ -20,7 +29,7 @@ type User struct {
 
 // APIKey represents an API key for programmatic access
 type APIKey struct {
-	gorm.Model
+	Base
 	Name      string     `gorm:"not null" json:"name"`
 	KeyHash   string     `gorm:"uniqueIndex;not null" json:"-"`
 	KeyPrefix string     `gorm:"not null" json:"key_prefix"`
@@ -33,7 +42,7 @@ type APIKey struct {
 
 // WireGuardServer represents the WireGuard server configuration
 type WireGuardServer struct {
-	gorm.Model
+	Base
 	Interface  string `gorm:"default:'wg0'" json:"interface"`
 	PrivateKey string `gorm:"not null" json:"-"`
 	PublicKey  string `gorm:"not null" json:"public_key"`
@@ -48,7 +57,7 @@ type WireGuardServer struct {
 
 // Client represents a WireGuard peer/client
 type Client struct {
-	gorm.Model
+	Base
 	Name         string     `gorm:"not null" json:"name"`
 	Description  string     `json:"description"`
 	PrivateKey   string     `gorm:"not null" json:"-"`
@@ -65,7 +74,7 @@ type Client struct {
 
 // AuditLog stores audit trail entries
 type AuditLog struct {
-	gorm.Model
+	Base
 	UserID    *uint  `json:"user_id,omitempty"`
 	Username  string `json:"username"`
 	Action    string `gorm:"not null" json:"action"`
@@ -77,7 +86,7 @@ type AuditLog struct {
 
 // OIDCConfig stores OIDC provider configuration
 type OIDCConfig struct {
-	gorm.Model
+	Base
 	ProviderName string `gorm:"not null" json:"provider_name"`
 	IssuerURL    string `gorm:"not null" json:"issuer_url"`
 	ClientID     string `gorm:"not null" json:"client_id"`
@@ -89,7 +98,7 @@ type OIDCConfig struct {
 
 // SystemSettings stores application-wide settings
 type SystemSettings struct {
-	gorm.Model
+	Base
 	Key   string `gorm:"uniqueIndex;not null" json:"key"`
 	Value string `gorm:"not null" json:"value"`
 }
