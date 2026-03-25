@@ -66,8 +66,11 @@ require_tool() {
 
 download() {
   local url="$1" dest="$2"
-  if has curl; then curl -fsSL "$url" -o "$dest"
-  else              wget -qO   "$dest" "$url"; fi
+  if has curl; then
+    curl -fsSL "$url" -o "$dest" || return 1
+  else
+    wget -qO "$dest" "$url" || return 1
+  fi
 }
 
 latest_version() {
