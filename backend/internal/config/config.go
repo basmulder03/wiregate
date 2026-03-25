@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -90,7 +92,11 @@ func Load() (*Config, error) {
 }
 
 func generateRandomSecret(length int) string {
-	// In production this would use crypto/rand
-	// For now return a placeholder - will be overridden by env var
-	return "CHANGE_ME_SET_WIREGATE_SERVER_JWT_SECRET_ENV_VAR"
+	// length is in bytes; the hex-encoded output will be length*2 chars
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		// rand.Read never fails on supported platforms, but handle it gracefully
+		panic("wiregate: failed to generate JWT secret: " + err.Error())
+	}
+	return hex.EncodeToString(bytes)
 }

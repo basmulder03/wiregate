@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { authApi, serverApi } from '@/api'
+import { authApi, serverApi, settingsApi } from '@/api'
 import { useAuth } from '@/context/AuthContext'
 import { Network, Loader2, Check, ChevronRight, Server, User } from 'lucide-react'
 
@@ -193,6 +193,10 @@ function StepServerConfig({ onDone }: { onDone: () => void }) {
         mtu: parseInt(form.mtu, 10) || 1420,
         enabled: true,
       })
+      // Save public endpoint separately (stored in SystemSettings)
+      if (form.endpoint.trim()) {
+        await settingsApi.setEndpoint(form.endpoint.trim())
+      }
       onDone()
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error

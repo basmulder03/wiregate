@@ -73,5 +73,11 @@ export const connectionsApi = {
 
 // Audit
 export const auditApi = {
-  list: () => api.get<AuditLog[]>('/audit'),
+  list: (limit?: number) => api.get<AuditLog[]>('/audit', { params: limit ? { limit } : undefined }),
+}
+
+// Settings
+export const settingsApi = {
+  getEndpoint: () => api.get<{ endpoint: string }>('/settings/endpoint'),
+  setEndpoint: (endpoint: string) => api.put<{ endpoint: string }>('/settings/endpoint', { endpoint }),
 }

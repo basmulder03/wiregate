@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { serverApi, authApi } from '@/api'
+import { serverApi, authApi, settingsApi } from '@/api'
 import { Key, Shield, Server, Loader2, Plus, Trash2, Eye, EyeOff, Copy, Check } from 'lucide-react'
 import type { APIKey } from '@/types'
 
@@ -11,6 +11,11 @@ function ServerSettings() {
     queryFn: () => serverApi.get().then((r) => r.data),
   })
 
+  const { data: endpointData, isLoading: endpointLoading } = useQuery({
+    queryKey: ['endpoint'],
+    queryFn: () => settingsApi.getEndpoint().then((r) => r.data),
+  })
+
   const [form, setForm] = useState({
     listen_port: 51820,
     address: '10.0.0.1/24',
@@ -19,6 +24,7 @@ function ServerSettings() {
     post_down: 'iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE',
     mtu: 1420,
   })
+  const [endpoint, setEndpoint] = useState('')
 
   const [initialized, setInitialized] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -35,16 +41,25 @@ function ServerSettings() {
     setInitialized(true)
   }
 
+  // Populate endpoint once loaded (separate from server form init)
+  if (endpointData !== undefined && endpoint === '' && endpointData.endpoint) {
+    setEndpoint(endpointData.endpoint)
+  }
+
   const mutation = useMutation({
-    mutationFn: () => serverApi.update(form),
+    mutationFn: async () => {
+      await serverApi.update(form)
+      await settingsApi.setEndpoint(endpoint)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['server'] })
+      queryClient.invalidateQueries({ queryKey: ['endpoint'] })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     },
   })
 
-  if (isLoading) {
+  if (isLoading || endpointLoading) {
     return <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
   }
 
@@ -89,6 +104,19 @@ function ServerSettings() {
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Public Endpoint <span className="text-gray-400 font-normal">(used in client configs)</span>
+        </label>
+        <input
+          type="text"
+          value={endpoint}
+          onChange={(e) => setEndpoint(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="vpn.example.com:51820"
+        />
+        <p className="text-xs text-gray-500 mt-1">The address clients use to reach this server. Appears in downloaded .conf files and QR codes.</p>
       </div>
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">PostUp</label>

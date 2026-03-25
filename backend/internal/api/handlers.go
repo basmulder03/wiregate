@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/basmulder03/wiregate/internal/auth"
@@ -47,6 +48,7 @@ func (h *Handler) Login(c *gin.Context) {
 
 	user, totpRequired, err := h.authSvc.LoginWithPassword(req.Username, req.Password)
 	if err != nil {
+		h.writeAudit(c, nil, req.Username, "login", "auth", "invalid credentials", false)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
@@ -60,6 +62,7 @@ func (h *Handler) Login(c *gin.Context) {
 	// Validate TOTP if required
 	if totpRequired {
 		if err := h.authSvc.ValidateTOTP(user.ID, req.TOTPCode); err != nil {
+			h.writeAudit(c, &user.ID, user.Username, "login", "auth", "invalid TOTP code", false)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid TOTP code"})
 			return
 		}
@@ -72,6 +75,7 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 
 	h.authSvc.UpdateLastLogin(user.ID)
+	h.writeAudit(c, &user.ID, user.Username, "login", "auth", "login successful", true)
 
 	c.JSON(http.StatusOK, gin.H{
 		"token":   token,
@@ -290,9 +294,11 @@ func (h *Handler) GetServerStatus(c *gin.Context) {
 // POST /api/server/start
 func (h *Handler) ServerStart(c *gin.Context) {
 	if err := h.wgMgr.Start(); err != nil {
+		h.writeAudit(c, nil, ctxUsername(c), "server_start", "wireguard", err.Error(), false)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	h.writeAudit(c, ctxUserID(c), ctxUsername(c), "server_start", "wireguard", "WireGuard started", true)
 	c.JSON(http.StatusOK, gin.H{"message": "WireGuard started"})
 }
 
@@ -300,9 +306,11 @@ func (h *Handler) ServerStart(c *gin.Context) {
 // POST /api/server/stop
 func (h *Handler) ServerStop(c *gin.Context) {
 	if err := h.wgMgr.Stop(); err != nil {
+		h.writeAudit(c, nil, ctxUsername(c), "server_stop", "wireguard", err.Error(), false)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	h.writeAudit(c, ctxUserID(c), ctxUsername(c), "server_stop", "wireguard", "WireGuard stopped", true)
 	c.JSON(http.StatusOK, gin.H{"message": "WireGuard stopped"})
 }
 
@@ -310,9 +318,11 @@ func (h *Handler) ServerStop(c *gin.Context) {
 // POST /api/server/restart
 func (h *Handler) ServerRestart(c *gin.Context) {
 	if err := h.wgMgr.Restart(); err != nil {
+		h.writeAudit(c, nil, ctxUsername(c), "server_restart", "wireguard", err.Error(), false)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	h.writeAudit(c, ctxUserID(c), ctxUsername(c), "server_restart", "wireguard", "WireGuard restarted", true)
 	c.JSON(http.StatusOK, gin.H{"message": "WireGuard restarted"})
 }
 
@@ -416,6 +426,8 @@ func (h *Handler) CreateClient(c *gin.Context) {
 		return
 	}
 
+	h.writeAudit(c, ctxUserID(c), ctxUsername(c), "create_client", "client:"+client.Name, "client created", true)
+
 	h.applyServerConfig(&server)
 	c.JSON(http.StatusCreated, client)
 }
@@ -479,6 +491,8 @@ func (h *Handler) DeleteClient(c *gin.Context) {
 	if h.wgMgr.IsRunning() {
 		h.wgMgr.DisconnectPeer(client.PublicKey)
 	}
+
+	h.writeAudit(c, ctxUserID(c), ctxUsername(c), "delete_client", "client:"+client.Name, "client deleted", true)
 
 	var server models.WireGuardServer
 	if h.db.First(&server).Error == nil {
@@ -650,14 +664,53 @@ func (h *Handler) GetAuditLogs(c *gin.Context) {
 	var logs []models.AuditLog
 	query := h.db.Order("created_at desc")
 
-	if limit := c.Query("limit"); limit != "" {
-		query = query.Limit(100)
-	} else {
-		query = query.Limit(100)
+	limit := 100
+	if lStr := c.Query("limit"); lStr != "" {
+		if parsed, err := strconv.Atoi(lStr); err == nil && parsed > 0 {
+			limit = parsed
+			if limit > 500 {
+				limit = 500
+			}
+		}
 	}
+	query = query.Limit(limit)
 
 	query.Find(&logs)
 	c.JSON(http.StatusOK, logs)
+}
+
+// --- System Settings Handlers ---
+
+// GetPublicEndpoint returns the server's public endpoint setting
+// GET /api/settings/endpoint
+func (h *Handler) GetPublicEndpoint(c *gin.Context) {
+	var setting models.SystemSettings
+	if err := h.db.Where("key = ?", "server_public_endpoint").First(&setting).Error; err != nil {
+		c.JSON(http.StatusOK, gin.H{"endpoint": ""})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"endpoint": setting.Value})
+}
+
+// SetPublicEndpoint saves the server's public endpoint setting
+// PUT /api/settings/endpoint
+func (h *Handler) SetPublicEndpoint(c *gin.Context) {
+	var req struct {
+		Endpoint string `json:"endpoint"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var setting models.SystemSettings
+	if err := h.db.Where("key = ?", "server_public_endpoint").First(&setting).Error; err != nil {
+		setting = models.SystemSettings{Key: "server_public_endpoint", Value: req.Endpoint}
+		h.db.Create(&setting)
+	} else {
+		h.db.Model(&setting).Update("value", req.Endpoint)
+	}
+	c.JSON(http.StatusOK, gin.H{"endpoint": req.Endpoint})
 }
 
 // --- OIDC Config ---
@@ -686,6 +739,37 @@ func (h *Handler) UpsertOIDCConfig(c *gin.Context) {
 }
 
 // --- Helpers ---
+
+// ctxUserID extracts the user ID from the gin context (set by AuthMiddleware).
+func ctxUserID(c *gin.Context) *uint {
+	v, _ := c.Get("user_id")
+	id, ok := v.(uint)
+	if !ok {
+		return nil
+	}
+	return &id
+}
+
+// ctxUsername extracts the username from the gin context (set by AuthMiddleware).
+func ctxUsername(c *gin.Context) string {
+	v, _ := c.Get("username")
+	s, _ := v.(string)
+	return s
+}
+
+// writeAudit persists a single audit log entry (fire-and-forget; errors are silently swallowed).
+func (h *Handler) writeAudit(c *gin.Context, userID *uint, username, action, resource, details string, success bool) {
+	entry := models.AuditLog{
+		UserID:    userID,
+		Username:  username,
+		Action:    action,
+		Resource:  resource,
+		Details:   details,
+		IPAddress: c.ClientIP(),
+		Success:   success,
+	}
+	h.db.Create(&entry)
+}
 
 func sanitizeUser(u *models.User) gin.H {
 	return gin.H{

@@ -94,6 +94,8 @@ func SetupRouter(handler *Handler, authSvc *auth.Service, allowedOrigins []strin
 		settings := protected.Group("/settings")
 		settings.Use(middleware.RequireAdmin())
 		{
+			settings.GET("/endpoint", handler.GetPublicEndpoint)
+			settings.PUT("/endpoint", handler.SetPublicEndpoint)
 			settings.GET("/oidc", handler.GetOIDCConfig)
 			settings.POST("/oidc", handler.UpsertOIDCConfig)
 		}
