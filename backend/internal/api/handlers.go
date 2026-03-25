@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -966,6 +967,166 @@ func (h *Handler) UpsertOIDCConfig(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, req)
+}
+
+// DeleteOIDCConfig deletes an OIDC provider config by ID
+// DELETE /api/settings/oidc/:id
+func (h *Handler) DeleteOIDCConfig(c *gin.Context) {
+	id := c.Param("id")
+	result := h.db.Delete(&models.OIDCConfig{}, id)
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		return
+	}
+	if result.RowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "OIDC config not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "OIDC provider deleted"})
+}
+
+// --- User Management ---
+
+// ListUsers returns all users (admin only)
+// GET /api/users
+func (h *Handler) ListUsers(c *gin.Context) {
+	var users []models.User
+	h.db.Find(&users)
+	out := make([]gin.H, 0, len(users))
+	for i := range users {
+		out = append(out, sanitizeUser(&users[i]))
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// GetUser returns a single user by ID (admin only)
+// GET /api/users/:id
+func (h *Handler) GetUser(c *gin.Context) {
+	id := c.Param("id")
+	var user models.User
+	if err := h.db.First(&user, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	c.JSON(http.StatusOK, sanitizeUser(&user))
+}
+
+// CreateUser creates a new user (admin only)
+// POST /api/users
+func (h *Handler) CreateUser(c *gin.Context) {
+	var req struct {
+		Username string `json:"username" binding:"required,min=3"`
+		Password string `json:"password" binding:"required,min=8"`
+		Email    string `json:"email"`
+		Role     string `json:"role"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if req.Role == "" {
+		req.Role = "user"
+	}
+	if req.Role != "admin" && req.Role != "user" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "role must be 'admin' or 'user'"})
+		return
+	}
+
+	hash, err := auth.HashPassword(req.Password)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
+		return
+	}
+
+	user := models.User{
+		Username:     req.Username,
+		Email:        req.Email,
+		PasswordHash: hash,
+		Role:         req.Role,
+	}
+	if err := h.db.Create(&user).Error; err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "username already exists"})
+		return
+	}
+
+	h.writeAudit(c, ctxUserID(c), ctxUsername(c), "create_user", "user:"+user.Username, "user created", true)
+	c.JSON(http.StatusCreated, sanitizeUser(&user))
+}
+
+// UpdateUser updates a user's details (admin only, or self for non-sensitive fields)
+// PUT /api/users/:id
+func (h *Handler) UpdateUser(c *gin.Context) {
+	id := c.Param("id")
+	var user models.User
+	if err := h.db.First(&user, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	var req struct {
+		Email    string `json:"email"`
+		Role     string `json:"role"`
+		Password string `json:"password"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updates := map[string]interface{}{}
+	if req.Email != "" {
+		updates["email"] = req.Email
+	}
+	if req.Role != "" {
+		if req.Role != "admin" && req.Role != "user" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "role must be 'admin' or 'user'"})
+			return
+		}
+		updates["role"] = req.Role
+	}
+	if req.Password != "" {
+		if len(req.Password) < 8 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "password must be at least 8 characters"})
+			return
+		}
+		hash, err := auth.HashPassword(req.Password)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
+			return
+		}
+		updates["password_hash"] = hash
+	}
+
+	if len(updates) > 0 {
+		h.db.Model(&user).Updates(updates)
+		h.db.First(&user, id) // reload
+	}
+
+	h.writeAudit(c, ctxUserID(c), ctxUsername(c), "update_user", "user:"+user.Username, "user updated", true)
+	c.JSON(http.StatusOK, sanitizeUser(&user))
+}
+
+// DeleteUser deletes a user (admin only; cannot delete yourself)
+// DELETE /api/users/:id
+func (h *Handler) DeleteUser(c *gin.Context) {
+	id := c.Param("id")
+
+	// Prevent self-deletion
+	selfID, _ := c.Get("user_id")
+	if fmt.Sprintf("%v", selfID) == id {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot delete your own account"})
+		return
+	}
+
+	var user models.User
+	if err := h.db.First(&user, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	h.db.Delete(&user)
+	h.writeAudit(c, ctxUserID(c), ctxUsername(c), "delete_user", "user:"+user.Username, "user deleted", true)
+	c.JSON(http.StatusOK, gin.H{"message": "user deleted"})
 }
 
 // --- Helpers ---

@@ -9,6 +9,7 @@ import { ClientsPage } from './pages/ClientsPage'
 import { ConnectionsPage } from './pages/ConnectionsPage'
 import { AuditPage } from './pages/AuditPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { UsersPage } from './pages/UsersPage'
 import { useQuery } from '@tanstack/react-query'
 import { setupApi } from './api'
 
@@ -122,6 +123,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AuditPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/users"
+        element={
+          <ProtectedRoute>
+            <UsersPage />
           </ProtectedRoute>
         }
       />

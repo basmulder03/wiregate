@@ -1,6 +1,7 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 import { X, CheckCircle, AlertTriangle, Info, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { setToastFn } from '@/lib/toast'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       setTimeout(() => removeToast(id), duration)
     }
   }, [removeToast])
+
+  // Register the addToast function in the module-level singleton so
+  // code outside the React tree (e.g. axios interceptors) can fire toasts.
+  useEffect(() => {
+    setToastFn(addToast)
+  }, [addToast])
 
   return (
     <ToastContext.Provider value={{ toasts, addToast, removeToast }}>

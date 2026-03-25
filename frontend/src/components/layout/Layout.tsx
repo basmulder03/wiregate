@@ -24,6 +24,7 @@ const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/clients', label: 'Clients', icon: Users },
   { to: '/connections', label: 'Connections', icon: Activity },
+  { to: '/users', label: 'Users', icon: Shield },
   { to: '/audit', label: 'Audit Log', icon: ClipboardList },
   { to: '/settings', label: 'Settings', icon: Settings },
 ]

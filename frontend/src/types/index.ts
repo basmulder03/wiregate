@@ -95,6 +95,19 @@ export interface OIDCProvider {
   provider_name: string
 }
 
+export interface OIDCConfig {
+  id?: number
+  provider_name: string
+  issuer_url: string
+  client_id: string
+  client_secret?: string
+  redirect_url: string
+  scopes: string
+  enabled: boolean
+  created_at?: string
+  updated_at?: string
+}
+
 export type InstallMethod = 'systemd' | 'launchd' | 'docker' | 'manual'
 
 export interface VersionInfo {

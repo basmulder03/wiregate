@@ -10,6 +10,7 @@ import type {
   ServerStatus,
   SetupStatus,
   OIDCProvider,
+  OIDCConfig,
   VersionInfo,
   UpdateSettings,
 } from '@/types'
@@ -31,9 +32,9 @@ export const authApi = {
   listOIDCProviders: () => api.get<OIDCProvider[]>('/auth/oidc/providers'),
 
   createAPIKey: (name: string, scopes?: string, expiresAt?: string) =>
-    api.post<{ key: string; api_key: APIKey }>('/auth/api-keys', { name, scopes, expires_at: expiresAt }),
+    api.post<{ key: string; api_key: APIKey }>('/auth/api-keys', { name, scopes, expires_at: expiresAt }, { _toast: true }),
   listAPIKeys: () => api.get<APIKey[]>('/auth/api-keys'),
-  deleteAPIKey: (id: number) => api.delete(`/auth/api-keys/${id}`),
+  deleteAPIKey: (id: number) => api.delete(`/auth/api-keys/${id}`, { _toast: true }),
 }
 
 // Setup status
@@ -46,9 +47,9 @@ export const serverApi = {
   get: () => api.get<WireGuardServer>('/server'),
   update: (data: Partial<WireGuardServer>) => api.put<WireGuardServer>('/server', data),
   status: () => api.get<ServerStatus>('/server/status'),
-  start: () => api.post('/server/start'),
-  stop: () => api.post('/server/stop'),
-  restart: () => api.post('/server/restart'),
+  start: () => api.post('/server/start', {}, { _toast: { error: true, errorTitle: 'Start failed' } }),
+  stop: () => api.post('/server/stop', {}, { _toast: { error: true, errorTitle: 'Stop failed' } }),
+  restart: () => api.post('/server/restart', {}, { _toast: { error: true, errorTitle: 'Restart failed' } }),
 }
 
 // Clients
@@ -62,9 +63,9 @@ export const clientsApi = {
     mtu?: number
     allowed_ips?: string
     expires_at?: string
-  }) => api.post<Client>('/clients', data),
-  update: (id: number, data: Partial<Client>) => api.put<Client>(`/clients/${id}`, data),
-  delete: (id: number) => api.delete(`/clients/${id}`),
+  }) => api.post<Client>('/clients', data, { _toast: true }),
+  update: (id: number, data: Partial<Client>) => api.put<Client>(`/clients/${id}`, data, { _toast: true }),
+  delete: (id: number) => api.delete(`/clients/${id}`, { _toast: true }),
   getConfig: (id: number) => api.get<{ config: string; filename: string }>(`/clients/${id}/config`),
   getQR: (id: number) => api.get<Blob>(`/clients/${id}/qr`, { responseType: 'blob' }),
 }
@@ -73,7 +74,7 @@ export const clientsApi = {
 export const connectionsApi = {
   list: () => api.get<ConnectedPeer[]>('/connections'),
   disconnect: (pubkey: string) =>
-    api.delete(`/connections/${encodeURIComponent(pubkey)}`),
+    api.delete(`/connections/${encodeURIComponent(pubkey)}`, { _toast: true }),
 }
 
 // Audit
@@ -85,8 +86,22 @@ export const auditApi = {
 export const settingsApi = {
   getEndpoint: () => api.get<{ endpoint: string }>('/settings/endpoint'),
   setEndpoint: (endpoint: string) => api.put<{ endpoint: string }>('/settings/endpoint', { endpoint }),
+  getOIDCConfigs: () => api.get<OIDCConfig[]>('/settings/oidc'),
+  upsertOIDCConfig: (data: OIDCConfig) => api.post<OIDCConfig>('/settings/oidc', data),
+  deleteOIDCConfig: (id: number) => api.delete(`/settings/oidc/${id}`),
   getUpdateSettings: () => api.get<UpdateSettings>('/settings/updates'),
   setUpdateSettings: (data: UpdateSettings) => api.put<UpdateSettings>('/settings/updates', data),
+}
+
+// Users
+export const usersApi = {
+  list: () => api.get<User[]>('/users'),
+  get: (id: number) => api.get<User>(`/users/${id}`),
+  create: (data: { username: string; password: string; email?: string; role?: string }) =>
+    api.post<User>('/users', data),
+  update: (id: number, data: { email?: string; role?: string; password?: string }) =>
+    api.put<User>(`/users/${id}`, data),
+  delete: (id: number) => api.delete(`/users/${id}`),
 }
 
 // Version / updates
@@ -94,4 +109,3 @@ export const versionApi = {
   get: () => api.get<VersionInfo>('/version'),
   triggerUpdate: () => api.post<{ message: string; target?: string }>('/system/update'),
 }
-

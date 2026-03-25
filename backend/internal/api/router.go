@@ -107,8 +107,20 @@ func SetupRouter(handler *Handler, authSvc *auth.Service, allowedOrigins []strin
 			settings.PUT("/endpoint", handler.SetPublicEndpoint)
 			settings.GET("/oidc", handler.GetOIDCConfig)
 			settings.POST("/oidc", handler.UpsertOIDCConfig)
+			settings.DELETE("/oidc/:id", handler.DeleteOIDCConfig)
 			settings.GET("/updates", handler.GetUpdateSettings)
 			settings.PUT("/updates", handler.SetUpdateSettings)
+		}
+
+		// User management (admin only)
+		users := protected.Group("/users")
+		users.Use(middleware.RequireAdmin())
+		{
+			users.GET("", handler.ListUsers)
+			users.GET("/:id", handler.GetUser)
+			users.POST("", handler.CreateUser)
+			users.PUT("/:id", handler.UpdateUser)
+			users.DELETE("/:id", handler.DeleteUser)
 		}
 
 		// System actions (admin only)
