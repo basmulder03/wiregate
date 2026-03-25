@@ -1,15 +1,21 @@
 package api
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/basmulder03/wiregate/internal/auth"
 	"github.com/basmulder03/wiregate/internal/models"
 	"github.com/basmulder03/wiregate/internal/wireguard"
+	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gin-gonic/gin"
 	qrcode "github.com/skip2/go-qrcode"
+	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 )
 
@@ -711,6 +717,185 @@ func (h *Handler) SetPublicEndpoint(c *gin.Context) {
 		h.db.Model(&setting).Update("value", req.Endpoint)
 	}
 	c.JSON(http.StatusOK, gin.H{"endpoint": req.Endpoint})
+}
+
+// --- OIDC Login Flow ---
+
+// ListOIDCProviders returns enabled OIDC providers (public, used by login page)
+// GET /api/auth/oidc/providers
+func (h *Handler) ListOIDCProviders(c *gin.Context) {
+	var configs []models.OIDCConfig
+	h.db.Where("enabled = ?", true).Find(&configs)
+
+	type providerInfo struct {
+		ID           uint   `json:"id"`
+		ProviderName string `json:"provider_name"`
+	}
+	var out []providerInfo
+	for _, cfg := range configs {
+		out = append(out, providerInfo{ID: cfg.ID, ProviderName: cfg.ProviderName})
+	}
+	if out == nil {
+		out = []providerInfo{}
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// OIDCLoginURL redirects the browser to the provider's authorization endpoint
+// GET /api/auth/oidc/:provider/login
+func (h *Handler) OIDCLoginURL(c *gin.Context) {
+	providerName := c.Param("provider")
+	cfg, err := h.findOIDCConfig(providerName)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "OIDC provider not found or disabled"})
+		return
+	}
+
+	oauth2Cfg, err := h.buildOAuth2Config(c.Request.Context(), cfg)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to initialise OIDC provider: " + err.Error()})
+		return
+	}
+
+	// Generate and persist a random state token (30-min TTL via key name)
+	stateBytes := make([]byte, 16)
+	rand.Read(stateBytes) //nolint:errcheck
+	state := hex.EncodeToString(stateBytes)
+	stateKey := "oidc_state_" + state
+	h.db.Save(&models.SystemSettings{Key: stateKey, Value: cfg.ProviderName})
+
+	url := oauth2Cfg.AuthCodeURL(state, oauth2.AccessTypeOnline)
+	c.Redirect(http.StatusFound, url)
+}
+
+// OIDCCallback handles the provider redirect back to WireGate
+// GET /api/auth/oidc/:provider/callback
+func (h *Handler) OIDCCallback(c *gin.Context) {
+	providerName := c.Param("provider")
+	cfg, err := h.findOIDCConfig(providerName)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "OIDC provider not found or disabled"})
+		return
+	}
+
+	// Validate state
+	state := c.Query("state")
+	stateKey := "oidc_state_" + state
+	var stateSetting models.SystemSettings
+	if h.db.Where("key = ?", stateKey).First(&stateSetting).Error != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid or expired state"})
+		return
+	}
+	h.db.Where("key = ?", stateKey).Delete(&models.SystemSettings{})
+
+	// Exchange code for tokens
+	oauth2Cfg, err := h.buildOAuth2Config(c.Request.Context(), cfg)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "OIDC init failed: " + err.Error()})
+		return
+	}
+
+	code := c.Query("code")
+	token, err := oauth2Cfg.Exchange(c.Request.Context(), code)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "code exchange failed: " + err.Error()})
+		return
+	}
+
+	// Verify ID token
+	provider, err := gooidc.NewProvider(c.Request.Context(), cfg.IssuerURL)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "OIDC provider init failed"})
+		return
+	}
+	verifier := provider.Verifier(&gooidc.Config{ClientID: cfg.ClientID})
+	rawIDToken, ok := token.Extra("id_token").(string)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no id_token in response"})
+		return
+	}
+	idToken, err := verifier.Verify(c.Request.Context(), rawIDToken)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "id_token verification failed"})
+		return
+	}
+
+	var claims struct {
+		Email   string `json:"email"`
+		Name    string `json:"name"`
+		Subject string `json:"sub"`
+	}
+	if err := idToken.Claims(&claims); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse claims"})
+		return
+	}
+
+	// Find or create user
+	username := claims.Email
+	if username == "" {
+		username = claims.Subject
+	}
+	var user models.User
+	if h.db.Where("username = ?", username).First(&user).Error != nil {
+		// Create new user from OIDC identity
+		user = models.User{
+			Username: username,
+			Email:    claims.Email,
+			Role:     "admin",
+			// No PasswordHash — OIDC-only account
+		}
+		if err := h.db.Create(&user).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
+			return
+		}
+	}
+
+	jwt, err := h.authSvc.GenerateToken(&user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
+		return
+	}
+
+	h.authSvc.UpdateLastLogin(user.ID)
+	h.writeAudit(c, &user.ID, user.Username, "login", "auth", "OIDC login via "+cfg.ProviderName, true)
+
+	// Redirect to frontend with token in query string; frontend picks it up and stores it
+	c.Redirect(http.StatusFound, "/?token="+jwt)
+}
+
+// findOIDCConfig looks up an enabled OIDCConfig by provider name or numeric ID string.
+func (h *Handler) findOIDCConfig(nameOrID string) (*models.OIDCConfig, error) {
+	var cfg models.OIDCConfig
+	query := h.db.Where("enabled = ?", true)
+	// try numeric ID first
+	if id, err := strconv.Atoi(nameOrID); err == nil {
+		query = query.Where("id = ?", id)
+	} else {
+		query = query.Where("provider_name = ?", nameOrID)
+	}
+	if err := query.First(&cfg).Error; err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+// buildOAuth2Config constructs an oauth2.Config from an OIDCConfig row.
+func (h *Handler) buildOAuth2Config(ctx context.Context, cfg *models.OIDCConfig) (*oauth2.Config, error) {
+	provider, err := gooidc.NewProvider(ctx, cfg.IssuerURL)
+	if err != nil {
+		return nil, err
+	}
+	scopes := strings.Split(cfg.Scopes, ",")
+	for i := range scopes {
+		scopes[i] = strings.TrimSpace(scopes[i])
+	}
+	return &oauth2.Config{
+		ClientID:     cfg.ClientID,
+		ClientSecret: cfg.ClientSecret,
+		RedirectURL:  cfg.RedirectURL,
+		Endpoint:     provider.Endpoint(),
+		Scopes:       scopes,
+	}, nil
 }
 
 // --- OIDC Config ---

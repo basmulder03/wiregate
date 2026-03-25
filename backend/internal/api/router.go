@@ -35,6 +35,10 @@ func SetupRouter(handler *Handler, authSvc *auth.Service, allowedOrigins []strin
 		public.POST("/auth/login", handler.Login)
 		public.POST("/auth/setup", handler.SetupAdmin)
 		public.GET("/setup/status", handler.GetSetupStatus)
+		// OIDC public endpoints
+		public.GET("/auth/oidc/providers", handler.ListOIDCProviders)
+		public.GET("/auth/oidc/:provider/login", handler.OIDCLoginURL)
+		public.GET("/auth/oidc/:provider/callback", handler.OIDCCallback)
 	}
 
 	// WebSocket (auth validated inside for ws compatibility)

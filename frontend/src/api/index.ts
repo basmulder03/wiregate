@@ -9,6 +9,7 @@ import type {
   AuditLog,
   ServerStatus,
   SetupStatus,
+  OIDCProvider,
 } from '@/types'
 
 // Auth
@@ -24,6 +25,8 @@ export const authApi = {
   setupTOTP: () => api.post<{ secret: string; qr_url: string }>('/auth/totp/setup'),
   confirmTOTP: (code: string) => api.post('/auth/totp/confirm', { code }),
   disableTOTP: (code: string) => api.post('/auth/totp/disable', { code }),
+
+  listOIDCProviders: () => api.get<OIDCProvider[]>('/auth/oidc/providers'),
 
   createAPIKey: (name: string, scopes?: string, expiresAt?: string) =>
     api.post<{ key: string; api_key: APIKey }>('/auth/api-keys', { name, scopes, expires_at: expiresAt }),

@@ -89,3 +89,8 @@ export interface LoginResponse {
   expires: string
   totp_required?: boolean
 }
+
+export interface OIDCProvider {
+  id: number
+  provider_name: string
+}

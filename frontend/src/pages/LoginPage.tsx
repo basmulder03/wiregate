@@ -1,9 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { authApi, setupApi } from '@/api'
 import { useAuth } from '@/context/AuthContext'
-import { Network, Loader2 } from 'lucide-react'
+import { Network, Loader2, LogIn } from 'lucide-react'
+
+// Base URL for backend API — needed to build the OIDC redirect href directly
+// (the browser must navigate there, not axios)
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -19,6 +23,30 @@ export function LoginPage() {
     queryKey: ['setup-status'],
     queryFn: () => setupApi.status().then((r) => r.data),
   })
+
+  const { data: oidcProviders } = useQuery({
+    queryKey: ['oidc-providers'],
+    queryFn: () => authApi.listOIDCProviders().then((r) => r.data),
+    staleTime: 60_000,
+  })
+
+  // Handle ?token= redirect from OIDC callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const token = params.get('token')
+    if (!token) return
+    // Fetch user info with the token, then log in
+    import('@/api/client').then(({ default: apiClient }) => {
+      apiClient.get('/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => {
+          login(token, res.data)
+          // Clean URL then navigate
+          window.history.replaceState({}, '', '/')
+          navigate('/')
+        })
+        .catch(() => setError('OIDC login failed — could not fetch user info.'))
+    })
+  }, [login, navigate])
 
   if (setupStatus?.setup_required) {
     navigate('/setup')
@@ -45,6 +73,8 @@ export function LoginPage() {
       setLoading(false)
     }
   }
+
+  const hasOIDC = oidcProviders && oidcProviders.length > 0
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
@@ -134,6 +164,29 @@ export function LoginPage() {
               </button>
             )}
           </form>
+
+          {/* OIDC provider buttons */}
+          {hasOIDC && !totpRequired && (
+            <>
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-xs text-gray-400">or continue with</span>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
+              <div className="space-y-2">
+                {oidcProviders.map((p) => (
+                  <a
+                    key={p.id}
+                    href={`${API_BASE}/auth/oidc/${encodeURIComponent(p.provider_name)}/login`}
+                    className="w-full flex items-center justify-center gap-2 py-2 px-4 border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    {p.provider_name}
+                  </a>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
