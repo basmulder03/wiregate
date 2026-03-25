@@ -23,6 +23,7 @@ type ServerConfig struct {
 	JWTSecret      string   `mapstructure:"jwt_secret"`
 	JWTExpiry      int      `mapstructure:"jwt_expiry_hours"`
 	AllowedOrigins []string `mapstructure:"allowed_origins"`
+	AllowedCIDRs   []string `mapstructure:"allowed_cidrs"`
 	TLSEnabled     bool     `mapstructure:"tls_enabled"`
 	TLSCertFile    string   `mapstructure:"tls_cert_file"`
 	TLSKeyFile     string   `mapstructure:"tls_key_file"`
@@ -59,6 +60,15 @@ func Load() (*Config, error) {
 	viper.SetDefault("server.port", 8080)
 	viper.SetDefault("server.jwt_expiry_hours", 24)
 	viper.SetDefault("server.allowed_origins", []string{"*"})
+	viper.SetDefault("server.allowed_cidrs", []string{
+		"127.0.0.0/8",
+		"::1/128",
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"fc00::/7",
+		"fe80::/10",
+	})
 	viper.SetDefault("database.driver", "sqlite")
 	viper.SetDefault("database.dsn", "/var/lib/wiregate/wiregate.db")
 	viper.SetDefault("wireguard.config_dir", "/etc/wireguard")

@@ -81,7 +81,7 @@ func main() {
 
 	// Frontend assets: prefer disk staticDir (set by env/config or Docker), fall back to embedded.
 	embeddedFS := static.FS()
-	router := api.SetupRouter(handler, authSvc, cfg.Server.AllowedOrigins, cfg.Server.StaticDir, embeddedFS)
+	router := api.SetupRouter(handler, authSvc, cfg.Server.AllowedOrigins, cfg.Server.AllowedCIDRs, cfg.Server.StaticDir, embeddedFS)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 

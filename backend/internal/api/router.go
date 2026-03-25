@@ -15,10 +15,11 @@ import (
 // SetupRouter creates and configures the Gin router.
 // embeddedFS is an optional fs.FS containing the compiled frontend assets.
 // When non-nil and staticDir is empty or missing on disk, the embedded FS is used.
-func SetupRouter(handler *Handler, authSvc *auth.Service, allowedOrigins []string, staticDir string, embeddedFS fs.FS) *gin.Engine {
+func SetupRouter(handler *Handler, authSvc *auth.Service, allowedOrigins, allowedCIDRs []string, staticDir string, embeddedFS fs.FS) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
+	router.Use(middleware.CIDRAllowList(allowedCIDRs))
 
 	// CORS
 	corsConfig := cors.DefaultConfig()

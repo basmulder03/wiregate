@@ -1346,11 +1346,17 @@ func (h *Handler) applyServerConfig(server *models.WireGuardServer) {
 		})
 	}
 
+	dnsForInterface := server.DNS
+	if isDevModeEnv() {
+		// In dev mode, avoid letting wg-quick/resolvconf alter host DNS.
+		dnsForInterface = ""
+	}
+
 	conf := &wireguard.ServerConf{
 		PrivateKey: server.PrivateKey,
 		Address:    server.Address,
 		ListenPort: server.ListenPort,
-		DNS:        server.DNS,
+		DNS:        dnsForInterface,
 		MTU:        server.MTU,
 		PostUp:     server.PostUp,
 		PostDown:   server.PostDown,
