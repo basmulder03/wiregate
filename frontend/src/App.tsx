@@ -9,6 +9,8 @@ import { ClientsPage } from './pages/ClientsPage'
 import { ConnectionsPage } from './pages/ConnectionsPage'
 import { AuditPage } from './pages/AuditPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { useQuery } from '@tanstack/react-query'
+import { setupApi } from './api'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,11 +27,44 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <Layout>{children}</Layout>
 }
 
+// Checks setup status and redirects to /setup when needed
+function SetupGuard({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth()
+
+  const { data: status, isLoading } = useQuery({
+    queryKey: ['setup-status'],
+    queryFn: () => setupApi.status().then((r) => r.data),
+    // Only poll when not yet authenticated (we need to know if admin exists)
+    enabled: !isAuthenticated,
+    staleTime: 0,
+  })
+
+  if (isLoading) return null
+
+  if (status?.setup_required) {
+    return <Navigate to="/setup" replace />
+  }
+
+  return <>{children}</>
+}
+
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      {/* Setup wizard — accessible only when setup is needed */}
       <Route path="/setup" element={<SetupPage />} />
+
+      {/* Login */}
+      <Route
+        path="/login"
+        element={
+          <SetupGuard>
+            <LoginPage />
+          </SetupGuard>
+        }
+      />
+
+      {/* Protected app routes */}
       <Route
         path="/"
         element={
@@ -70,6 +105,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
